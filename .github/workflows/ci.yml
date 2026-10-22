@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# No secrets are referenced anywhere in this workflow, so it is safe to run on
+# pull requests from forks.
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Install development tools
+        run: python -m pip install -r requirements-dev.txt
+      - name: Lint
+        run: make lint
+
+  workflow-lint:
+    name: workflow-lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ACTIONLINT_VERSION: "1.7.12"
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Install development tools
+        run: python -m pip install -r requirements-dev.txt
+      - name: Install actionlint (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+      - name: Lint workflows
+        run: make lint-workflows ACTIONLINT="$RUNNER_TEMP/actionlint"
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Install development tools
+        run: python -m pip install -r requirements-dev.txt
+      - name: Type check
+        run: make typecheck
+
+  test:
+    # Not a required check: `ci-ok` aggregates it. The matrix suffix keeps the
+    # display names of the legs distinct.
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.14"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      # The oldest interpreter runs with the standard library only, which is
+      # what the hooks and the installer need at runtime.
+      - name: Install development tools
+        if: matrix.python-version == '3.14'
+        run: python -m pip install -r requirements-dev.txt
+      - name: Test
+        run: make test
+
+  test-macos:
+    name: test-macos
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Show system Python
+        run: /usr/bin/python3 --version
+      # The system interpreter is what a stock macOS user actually has.
+      - name: Test
+        run: make test PY=/usr/bin/python3
+
+  ci-ok:
+    name: ci-ok
+    needs: [lint, workflow-lint, typecheck, test, test-macos]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      NEEDS_RESULTS: ${{ join(needs.*.result, ' ') }}
+    steps:
+      - name: Require every job to succeed
+        run: |
+          set -eu
+          if [ -z "$NEEDS_RESULTS" ]; then
+            echo "::error::No job results to evaluate"
+            exit 1
+          fi
+          for result in $NEEDS_RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A required job finished with result: $result"
+              exit 1
+            fi
+          done
+          echo "All jobs succeeded"

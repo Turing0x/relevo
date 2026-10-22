@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+# SubagentStop: añade una línea por subagente a ~/.claude/orchestrator/log.jsonl
+# (agente, modelo, effort, turnos, tokens, duración, estado). Nunca bloquea: siempre exit 0.
+import json, os, re, sys
+from datetime import datetime
+
+LOG = os.environ.get("ORCH_LOG") or os.path.expanduser("~/.claude/orchestrator/log.jsonl")
+STATUS = re.compile(r"^\W*(ESTADO|VEREDICTO)\W*:\W*([A-Za-z_]{2,})", re.M | re.I)
+USAGE = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+
+def ts(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
+
+def summarize(path):
+    # usage.output_tokens del transcript es el snapshot inicial del streaming, no el total:
+    # la salida se estima por caracteres generados / 4. Las entradas sí son fiables.
+    msgs, chars, model, effort, first, last, final = {}, {}, None, None, None, None, ""
+    with open(path) as f:
+        for line in f:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            t = d.get("timestamp")
+            first, last = first or t, t or last
+            if d.get("type") != "assistant":
+                continue
+            m = d.get("message") or {}
+            mid = m.get("id")
+            model, effort = m.get("model") or model, d.get("effort") or effort
+            u = m.get("usage") or {}
+            # Un mensaje en streaming aparece en varias líneas con el mismo id: quedarse con el máximo.
+            prev = msgs.get(mid, {})
+            msgs[mid] = {k: max(prev.get(k, 0), u.get(k) or 0) for k in USAGE}
+            for b in m.get("content") or []:
+                if b.get("type") == "text":
+                    chars[(mid, "t", b.get("text"))] = len(b.get("text") or "")
+                    final = b.get("text") or final
+                elif b.get("type") == "tool_use":
+                    inp = b.get("input") or {}
+                    chars[(mid, b.get("id"))] = len(json.dumps(inp, ensure_ascii=False))
+                    if b.get("name") == "SubagentHandback":
+                        final = inp.get("message") or final
+    tot = {k: sum(x[k] for x in msgs.values()) for k in USAGE}
+    dur = (ts(last) - ts(first)).total_seconds() if first and last else None
+    return model, effort, len(msgs), tot, sum(chars.values()) // 4, dur, final
+
+def status_of(msg):
+    st = STATUS.search(msg or "")
+    if st:
+        return st.group(2).upper()
+    return "JSON" if (msg or "").lstrip().startswith("{") else "SIN_ESTADO"
+
+def main():
+    h = json.load(sys.stdin)
+    agent = h.get("agent_type")
+    p = h.get("agent_transcript_path")
+    if not agent or not p or not os.path.exists(p):
+        return  # eventos internos sin agente ni transcript: no aportan señal
+    model, effort, turns, tot, out_est, dur, final = summarize(p)
+    rec = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "session": h.get("session_id"), "agent_id": h.get("agent_id"),
+        "cwd": h.get("cwd"),
+        "agent": agent, "model": model, "effort": effort, "turns": turns,
+        "in": tot["input_tokens"], "cache_read": tot["cache_read_input_tokens"],
+        "cache_write": tot["cache_creation_input_tokens"], "out_est": out_est,
+        "dur_s": round(dur) if dur is not None else None,
+        "status": status_of(next((m for m in (h.get("last_assistant_message"), final) if m and STATUS.search(m)),
+                                  h.get("last_assistant_message") or final)),
+    }
+    with open(LOG, "a") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+try:
+    main()
+except Exception as e:
+    print(f"orch-telemetry: {e}", file=sys.stderr)
+sys.exit(0)

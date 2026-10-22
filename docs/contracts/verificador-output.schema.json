@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "verificador → router",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/verificador.md:13-17. Máx 8 hallazgos por severidad.",
+  "type": "object",
+  "properties": {
+    "veredicto": {
+      "enum": [
+        "APROBADO",
+        "RECHAZADO"
+      ]
+    },
+    "causa": {
+      "enum": [
+        "diseño",
+        "implementación",
+        "—"
+      ]
+    },
+    "hallazgos": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "description": "[severidad] archivo:línea — problema — fix sugerido"
+      }
+    },
+    "comandos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "veredicto",
+    "causa"
+  ]
+}

@@ -1,0 +1,79 @@
+name: New agent
+description: Propose a new worker agent. Please open this before writing code.
+title: "agent: "
+labels: [new-agent]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A new worker changes cost, permissions and routing, so it needs agreement before code. See "Proposing a new agent" in [CONTRIBUTING.md](https://github.com/Turing0x/relevo/blob/main/CONTRIBUTING.md).
+  - type: input
+    id: name
+    attributes:
+      label: Agent name
+      description: The file name and the frontmatter `name` must match.
+    validations:
+      required: true
+  - type: textarea
+    id: role
+    attributes:
+      label: Role, and when the router should choose it
+      description: What does it do? Which task type and conditions of routing table B send work to it?
+    validations:
+      required: true
+  - type: textarea
+    id: frontmatter
+    attributes:
+      label: Model, effort and maxTurns
+      description: Proposed `model`, `effort` and `maxTurns`, with a one-line reason for each.
+      placeholder: |
+        model:
+        effort:
+        maxTurns:
+    validations:
+      required: true
+  - type: textarea
+    id: tools
+    attributes:
+      label: Tools and least-privilege justification
+      description: Which tools does it need (`tools` or `disallowedTools`), and why is each necessary? Does it need `Bash` or `Edit`? How is anything it should not do enforced, other than by its prompt?
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Output contract
+      description: A draft of its output as a JSON Schema (or the fields of the report), to become `docs/contracts/<name>-output.schema.json`.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: table_b
+    attributes:
+      label: Changes to routing table B
+      description: Which rows of table B (`orchestrator/policy.md` section 2B and its copy in `agents/clasificador.md`) change, and how do they interact with the budget?
+    validations:
+      required: true
+  - type: textarea
+    id: why_not_existing
+    attributes:
+      label: Why an existing worker does not work
+      description: Which existing worker did you consider, and what fails?
+    validations:
+      required: true
+  - type: textarea
+    id: cost
+    attributes:
+      label: Cost impact
+      description: Expected model usage per task, and any change to the number of opus calls.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for duplicates.
+          required: true
+        - label: I understand that a new agent is security-sensitive and will be reviewed more strictly.
+          required: true

@@ -1,0 +1,65 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "41 4 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    # Code scanning needs a public repository (or GitHub Advanced Security).
+    # Pull requests from forks and from Dependabot get a read-only token, so
+    # the SARIF upload would fail there; they are analyzed once merged.
+    if: >-
+      ${{ github.event.repository.private != true
+      && github.actor != 'dependabot[bot]'
+      && (github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read # CodeQL reads workflow run metadata
+      contents: read
+      security-events: write # upload SARIF results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The Python extractor ignores files without an extension, so analyze
+      # copies of the hooks that do have one.
+      - name: Expose extensionless hooks to the Python extractor
+        if: matrix.language == 'python'
+        run: |
+          set -euo pipefail
+          mkdir -p .codeql-shadow
+          for hook in hooks/*; do
+            [ -f "$hook" ] || continue
+            name=$(basename "$hook" | tr '-' '_')
+            cp "$hook" ".codeql-shadow/${name}.py"
+          done
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - name: Analyze
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: "/language:${{ matrix.language }}"

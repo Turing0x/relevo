@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "implementador → router",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/implementador.md:14-19. Máx 8 líneas.",
+  "type": "object",
+  "properties": {
+    "estado": {
+      "enum": [
+        "OK",
+        "ESCALAR",
+        "AMPLIAR",
+        "PENDIENTE_APROBACION"
+      ]
+    },
+    "motivo_o_accion": {
+      "type": "string",
+      "description": "ESCALAR: motivo. AMPLIAR: archivos+motivo. PENDIENTE_APROBACION: acción."
+    },
+    "archivos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verificacion": {
+      "type": "string",
+      "description": "<comando> → <resultado en 1 línea>"
+    },
+    "pendientes": {
+      "type": "string"
+    },
+    "detalle": {
+      "type": "string",
+      "description": "Ruta .claude/work/<tarea>.md"
+    }
+  },
+  "required": [
+    "estado",
+    "archivos",
+    "verificacion",
+    "pendientes"
+  ]
+}

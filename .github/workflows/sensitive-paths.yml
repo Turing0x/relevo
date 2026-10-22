@@ -1,0 +1,75 @@
+name: Sensitive paths
+
+# SECURITY NOTES (read before editing this file; any change here is critical):
+#
+# * `pull_request_target` runs with a write-capable GITHUB_TOKEN even for forks.
+#   That is acceptable only because this workflow never checks out or executes
+#   code from the pull request:
+#     - the only checkout is the BASE commit, sparse, with credentials not
+#       persisted;
+#     - the pull request is read as data through the REST API (file list and
+#       patches) and processed by a script that comes from the base branch;
+#     - no `${{ ... }}` expression is interpolated inside `run:`. The pull
+#       request number and the repository name reach the shell through `env`.
+# * No secret is referenced here, and the repository has none.
+# * tests/test_workflows.py asserts the absence of `secrets.` and of any
+#   checkout of the pull request head.
+#
+# See SECURITY.md#ai-orchestrator-specific-risks.
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] -- base-only checkout, no PR code executed, no secrets; see notes above
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: label
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write # add the label and upsert the comment
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check out the base commit (script only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: scripts/sensitive_diff.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Fetch the changed files as data
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | @json' > "$RUNNER_TEMP/files.jsonl"
+      - name: Classify the changed paths
+        id: classify
+        run: |
+          set -euo pipefail
+          python3 scripts/sensitive_diff.py "$RUNNER_TEMP/files.jsonl" \
+            --repo "$REPO" \
+            --out "$RUNNER_TEMP/comment.md" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Add the label and upsert the review comment
+        if: steps.classify.outputs.sensitive == 'true'
+        run: |
+          set -euo pipefail
+          # REST on purpose: `gh pr edit` fails with GITHUB_TOKEN (GraphQL projects query).
+          gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=security-sensitive" > /dev/null
+          comment_id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- relevo:sensitive-paths -->"))) | .id' \
+            | sed -n 1p)
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$comment_id" -F "body=@$RUNNER_TEMP/comment.md" > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$RUNNER_TEMP/comment.md" > /dev/null
+          fi

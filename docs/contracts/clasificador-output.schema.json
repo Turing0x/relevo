@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "clasificador → router",
+  "description": "Único contrato JSON real. Fuente: ~/.claude/agents/clasificador.md:11-15.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "tipo": {
+      "enum": [
+        "busqueda",
+        "mecanica",
+        "implementacion",
+        "arquitectura",
+        "bug_dificil",
+        "revision"
+      ]
+    },
+    "riesgo": {
+      "enum": [
+        "bajo",
+        "medio",
+        "alto"
+      ]
+    },
+    "complejidad": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "archivos_estimados": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ruta": {
+      "enum": [
+        "en_linea",
+        "Explore",
+        "rapido",
+        "implementador",
+        "arquitecto",
+        "verificador"
+      ]
+    },
+    "necesita_aprobacion": {
+      "type": "boolean"
+    },
+    "motivo": {
+      "type": "string",
+      "description": "≤15 palabras"
+    }
+  },
+  "required": [
+    "tipo",
+    "riesgo",
+    "complejidad",
+    "archivos_estimados",
+    "ruta",
+    "necesita_aprobacion",
+    "motivo"
+  ]
+}

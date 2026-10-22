@@ -1,0 +1,33 @@
+.claude/work/
+.claude/settings.local.json
+CLAUDE.local.md
+log.jsonl
+.relevo-backups/
+
+# Python / tooling
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.codeql-shadow/
+.lycheecache
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Environment files (relevo uses no secrets; see .env.example)
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/

@@ -1,0 +1,28 @@
+# Default owner for everything.
+* @Turing0x
+
+# Security-sensitive paths. These are redundant with the default rule today, but
+# they document the intent and keep an explicit owner when more maintainers join.
+# The list must match SENSITIVE_GLOBS in scripts/sensitive_diff.py
+# (tests/test_sensitive_diff.py enforces it).
+.claude/** @Turing0x
+**/.claude/** @Turing0x
+**/.claude.json @Turing0x
+**/CLAUDE.md @Turing0x
+**/AGENTS.md @Turing0x
+agents/** @Turing0x
+hooks/** @Turing0x
+commands/** @Turing0x
+orchestrator/** @Turing0x
+templates/** @Turing0x
+scripts/** @Turing0x
+.github/** @Turing0x
+**/settings*.json @Turing0x
+**/.mcp.json @Turing0x
+**/*mcp*.json @Turing0x
+Makefile @Turing0x
+pyproject.toml @Turing0x
+requirements*.txt @Turing0x
+.gitattributes @Turing0x
+**/.gitleaks.toml @Turing0x
+**/.gitleaksignore @Turing0x

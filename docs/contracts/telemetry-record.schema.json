@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "orch-telemetry → log.jsonl",
+  "description": "Una línea JSON por worker terminado. Fuente: ~/.claude/hooks/orch-telemetry:61-73. No guarda contenido de conversación.",
+  "type": "object",
+  "properties": {
+    "ts": {
+      "type": "string",
+      "description": "ISO local, segundos"
+    },
+    "session": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cwd": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent": {
+      "type": "string"
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "effort": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "turns": {
+      "type": "integer",
+      "description": "Mensajes de asistente únicos (dedupe por message.id)"
+    },
+    "in": {
+      "type": "integer"
+    },
+    "cache_read": {
+      "type": "integer"
+    },
+    "cache_write": {
+      "type": "integer"
+    },
+    "out_est": {
+      "type": "integer",
+      "description": "Estimación: caracteres generados / 4, sin thinking"
+    },
+    "dur_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "description": "Palabra tras ESTADO:/VEREDICTO: en mayúsculas, o JSON, o SIN_ESTADO"
+    }
+  },
+  "required": [
+    "ts",
+    "agent",
+    "turns",
+    "status"
+  ]
+}

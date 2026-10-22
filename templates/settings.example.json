@@ -1,0 +1,93 @@
+{
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ],
+    "ask": [
+      "Bash(brew install:*)",
+      "Bash(bun add:*)",
+      "Bash(cargo add:*)",
+      "Bash(docker push:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh release:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git clean:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(npm i:*)",
+      "Bash(npm install:*)",
+      "Bash(npm publish:*)",
+      "Bash(npx:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm dlx:*)",
+      "Bash(pnpm install:*)",
+      "Bash(rm -R:*)",
+      "Bash(rm -fr:*)",
+      "Bash(rm -r:*)",
+      "Bash(rm -rf:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase migration:*)",
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(uv add:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(vercel deploy:*)",
+      "Bash(vercel)",
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler pages deploy:*)",
+      "Bash(wrangler secret:*)",
+      "Bash(yarn add:*)",
+      "Edit(**/.env*)",
+      "Edit(**/migrations/**)",
+      "Edit(~/.claude/hooks/**)",
+      "Edit(~/.claude/settings.json)",
+      "Read(**/.env*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/block-force-push",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Grep|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/guard-secrets",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/orch-telemetry",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

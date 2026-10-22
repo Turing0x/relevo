@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas (Discussions)
+    url: https://github.com/Turing0x/relevo/discussions
+    about: Ask a question, share how you use relevo, or talk through an idea before filing an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/Turing0x/relevo/security/policy
+    about: Do not open a public issue. Read the security policy and report privately.
+  - name: Code of Conduct
+    url: https://github.com/Turing0x/relevo/blob/main/CODE_OF_CONDUCT.md
+    about: Report behavior that violates the Code of Conduct, by email to threedotsdev@icloud.com.

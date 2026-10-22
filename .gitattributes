@@ -1,0 +1,7 @@
+* text=auto eol=lf
+hooks/* text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+Makefile text eol=lf
+*.png binary
+docs/** linguist-documentation

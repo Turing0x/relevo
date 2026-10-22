@@ -1,0 +1,4 @@
+## Orquestación de modelos (todos los proyectos)
+@orchestrator/policy.md
+- Arquitectura y bugs difíciles: siempre vía `arquitecto` (§2B); el resto de decisiones las resuelves tú según el router.
+- Documentación del orquestador (descriptiva, no operativa): `~/.claude/orchestrator/docs/INDEX.md`.

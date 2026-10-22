@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "brief (router → worker)",
+  "description": "[VERIFICAR] formato no definido explícitamente en el código: la política lista los campos (~/.claude/orchestrator/policy.md:39, :46) pero el brief viaja como texto libre en el prompt del subagente.",
+  "type": "object",
+  "properties": {
+    "objetivo": {
+      "type": "string"
+    },
+    "archivos_permitidos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Fuera de esta lista, el worker devuelve AMPLIAR (~/.claude/agents/implementador.md:10)."
+    },
+    "criterios_aceptacion": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "comando_verificacion": {
+      "type": "string"
+    },
+    "limites": {
+      "type": "string"
+    },
+    "ruta_plan": {
+      "type": "string",
+      "description": "Solo si existe plan de arquitecto: .claude/work/plan-<tarea>.md"
+    },
+    "peticion_original_literal": {
+      "type": "string",
+      "description": "Obligatorio solo para verificador (~/.claude/orchestrator/policy.md:46)."
+    },
+    "hallazgos_previos": {
+      "type": "string",
+      "description": "En re-brief y replan (~/.claude/orchestrator/policy.md:19-20)."
+    }
+  },
+  "required": [
+    "objetivo"
+  ],
+  "not": {
+    "required": [
+      "razonamiento_implementador"
+    ]
+  },
+  "$comment": "Nunca incluye historial de chat (policy.md:39) ni, para verificador, el razonamiento del implementador (policy.md:46)."
+}

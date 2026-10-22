@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Explore → router",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/Explore.md:12-16. Máx 12 líneas.",
+  "type": "object",
+  "properties": {
+    "conclusion": {
+      "type": "string"
+    },
+    "evidencia": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^`?[^`]+:\\d+`? — .+"
+      }
+    },
+    "no_encontrado": {
+      "type": "string"
+    },
+    "pendiente_aprobacion": {
+      "type": "string",
+      "description": "Solo si la búsqueda exige leer secretos (Explore.md:12). No figura en el bloque de formato de salida."
+    }
+  },
+  "required": [
+    "conclusion"
+  ]
+}

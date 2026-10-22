@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rapido → router",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/rapido.md:12-15. Máx 8 líneas. Sin valor AMPLIAR.",
+  "type": "object",
+  "properties": {
+    "estado": {
+      "enum": [
+        "OK",
+        "ESCALAR",
+        "PENDIENTE_APROBACION"
+      ]
+    },
+    "accion_pendiente": {
+      "type": "string"
+    },
+    "resultado": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Búsqueda: archivo:línea + ≤1 línea. Cambio: rutas tocadas."
+    },
+    "detalle": {
+      "type": "string",
+      "description": "Ruta .claude/work/<tarea>.md"
+    }
+  },
+  "required": [
+    "estado"
+  ]
+}

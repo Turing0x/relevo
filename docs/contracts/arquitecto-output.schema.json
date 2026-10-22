@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "arquitecto → router",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/arquitecto.md:14-19. Máx 8 líneas. Sin ESCALAR ni AMPLIAR.",
+  "type": "object",
+  "properties": {
+    "estado": {
+      "enum": [
+        "OK",
+        "PENDIENTE_APROBACION"
+      ]
+    },
+    "plan": {
+      "type": "string",
+      "pattern": "\\.claude/work/plan-.+\\.md$"
+    },
+    "conclusion": {
+      "type": "string"
+    },
+    "tramos": {
+      "type": "string",
+      "description": "<nº> — <nombres cortos>"
+    },
+    "riesgos": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "estado",
+    "conclusion"
+  ]
+}

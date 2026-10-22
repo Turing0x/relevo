@@ -1,0 +1,114 @@
+name: Bug report
+description: Something does not work as documented (router, a worker, a hook, the installer, stats or the docs).
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **If this is a security vulnerability, do not file it here.** Follow [SECURITY.md](https://github.com/Turing0x/relevo/security/policy) and report it privately.
+
+        Please remove secrets and personal data from everything you paste.
+  - type: input
+    id: relevo_version
+    attributes:
+      label: relevo version
+      description: A release tag (for example `v0.1.0`) or the commit SHA you installed from.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: claude_code_version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+      placeholder: "x.y.z"
+    validations:
+      required: true
+  - type: dropdown
+    id: main_model
+    attributes:
+      label: Model of the main session
+      description: The model the router (your main Claude Code session) was running on.
+      options:
+        - Opus
+        - Sonnet
+        - Haiku
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Select every component involved.
+      multiple: true
+      options:
+        - Router (or work done in line)
+        - clasificador
+        - Explore
+        - rapido
+        - implementador
+        - arquitecto
+        - verificador
+        - Hook block-force-push
+        - Hook guard-secrets
+        - Hook orch-telemetry
+        - Installer / uninstaller
+        - Stats (/orch-stats)
+        - Docs
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15, Ubuntu 24.04, WSL2...
+    validations:
+      required: true
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      description: Output of `python3 --version`.
+      placeholder: Python 3.9.6
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened, and what did you expect?
+      placeholder: |
+        Actual:
+        Expected:
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace (redacted)
+      description: The worker's final report, the hook's stderr, or the relevant line of `~/.claude/orchestrator/log.jsonl`. Redact paths, names and anything private.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for duplicates.
+          required: true
+        - label: I removed secrets and personal data from this report.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true
