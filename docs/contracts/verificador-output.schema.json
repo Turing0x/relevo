@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "verificador → router",
-  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/verificador.md:13-17. Máx 8 hallazgos por severidad.",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/verificador.md:16-21. Máx 8 hallazgos por severidad. RECHAZADO solo con ≥1 bloqueante.",
   "type": "object",
   "properties": {
     "veredicto": {
@@ -22,8 +22,25 @@
       "maxItems": 8,
       "items": {
         "type": "string",
-        "description": "[severidad] archivo:línea — problema — fix sugerido"
-      }
+        "pattern": "^(?:\\[(?:bloqueante|advertencia)\\] .+|ninguno)$",
+        "description": "[bloqueante|advertencia] archivo:línea — problema — fix sugerido, o \"ninguno\". Bloqueante = causado por el cambio y no reproducible en base_commit; siempre bloqueante: criterio de aceptación incumplido, regresión del fix de un ciclo anterior, opción explícita ignorada, salida no pedida cambiada, secretos o acción sensible no aprobada."
+      },
+      "examples": [
+        [
+          "ninguno"
+        ],
+        [
+          "[bloqueante] src/cart.js:41 — no aplica el límite al actualizar — validar también en update"
+        ]
+      ]
+    },
+    "recheck": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^.+ — (?:resuelto|persiste)$"
+      },
+      "description": "Solo en modo recheck: un elemento por hallazgo previo de recheck_findings."
     },
     "comandos": {
       "type": "array",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "rapido → router",
-  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/rapido.md:12-15. Máx 8 líneas. Sin valor AMPLIAR.",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/rapido.md:13-17. Máx 8 líneas. Sin valor AMPLIAR.",
   "type": "object",
   "properties": {
     "estado": {
@@ -21,12 +21,23 @@
       },
       "description": "Búsqueda: archivo:línea + ≤1 línea. Cambio: rutas tocadas."
     },
+    "riesgo": {
+      "type": "string",
+      "pattern": "^(?:[1-6](?:,[1-6])* \\(.+\\)|ninguno)$",
+      "description": "Línea `Riesgo:` obligatoria: elementos de la lista de alto riesgo (~/.claude/orchestrator/policy.md:53-60) o \"ninguno\". 1-5 → riesgo alto; 6 → mínimo medio; ausente → mínimo medio.",
+      "examples": [
+        "ninguno",
+        "3 (cambia el formato de salida que lee orch-stats)",
+        "2,5 (toca guard-secrets y el instalador)"
+      ]
+    },
     "detalle": {
       "type": "string",
       "description": "Ruta .claude/work/<tarea>.md"
     }
   },
   "required": [
-    "estado"
+    "estado",
+    "riesgo"
   ]
 }

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Numbered high-risk list (policy §6bis), shared with `clasificador`, and a mandatory `Riesgo:` line in the `implementador` and `rapido` reports that feeds the final risk.
+- `verificador` receives `base_commit`: a finding blocks only if the change caused it and it does not reproduce on the base; precision gate; `recheck` mode that reviews only the previous findings.
+- Brief: `## Superficie permitida` section (never `.` or absolute paths), `base_commit`, `modo` and `recheck_findings[]`.
+- Router check before the final summary: re-run 1 reported command and open 1 `Explore` citation.
+- ADR 0009 and consistency tests for the risk line, the high-risk list and the `busqueda` row.
+
+### Changed
+
+- `busqueda` stays inline only if it also fits in 1 batch of ≤3 calls (~10k tokens); >5 sequential searches go to `Explore`.
+- The 2nd cycle after a `RECHAZADO` for implementation is a recheck; a new finding is a warning and does not use a cycle.
+- Parallel workers only for independent behaviour units (~100+ lines each, code + tests + docs together).
+- Blocking prompts (`PENDIENTE_APROBACION`, `AMPLIAR`) are relayed with every option verbatim.
+
 ## [0.1.0] - 2026-10-22
 
 First public release (alpha).

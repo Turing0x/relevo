@@ -17,7 +17,7 @@ Este archivo cubre qué falla puede ocurrir en el orquestador, cómo se detecta,
 | `verificador` sin `Causa` | El router la lee como dudosa | Re-brief al mismo ejecutor (`~/.claude/orchestrator/policy.md:20`) | Nada |
 | `arquitecto` no puede entregar plan | Su contrato no tiene `ESCALAR` (`~/.claude/agents/arquitecto.md:15`) | No especificado | Aportar información o redefinir la tarea |
 | Worker necesita archivos fuera del brief | `AMPLIAR` | Re-brief si sigue en alcance; si no, preguntar (`~/.claude/orchestrator/policy.md:16`) | Aprobar o rechazar la ampliación |
-| `rapido` necesita ampliar | `rapido` no tiene `AMPLIAR` en su contrato (`~/.claude/agents/rapido.md:13`) | No especificado | — |
+| `rapido` necesita ampliar | `rapido` no tiene `AMPLIAR` en su contrato (`~/.claude/agents/rapido.md:14`) | No especificado | — |
 | Acción sensible detectada | `PENDIENTE_APROBACION` o el router la detecta | AskUserQuestion con acción, alcance y rollback (`~/.claude/orchestrator/policy.md:15`) | Aprobar o rechazar |
 | Force push o borrado remoto de rama | Hook `block-force-push` (`~/.claude/hooks/block-force-push:40-43`) | Bloquea con exit 2 | Ejecutarlo a mano con `! git push ...` si es legítimo |
 | Falso positivo de `block-force-push` | Un comando legítimo que contiene el texto "git push --force" (p. ej. en el patrón de un `grep`) se bloquea | Bloquea con exit 2 | Reescribir el comando sin ese texto |
@@ -27,6 +27,17 @@ Este archivo cubre qué falla puede ocurrir en el orquestador, cómo se detecta,
 | Error de una tool dentro de un worker | No especificado en la política | El worker decide; si no lo resuelve, su reporte lo refleja | — |
 | Contexto del router excedido | No especificado; no hay `autoCompactWindow` en ningún agente | Claude Code compacta según su configuración por defecto `[VERIFICAR]` | Abrir sesión nueva; el detalle en `.claude/work/` sobrevive |
 | Planes o reportes en `.claude/work/` acaban en git | `.claude/work/` no está en `.gitignore` | Avisa y propone `/orchestrator-init` (`~/.claude/orchestrator/policy.md:41`) | Aprobar `/orchestrator-init` o añadirlo a mano |
-| Agente de proyecto con nombre de worker | Existe `<repo>/.claude/agents/<worker>.md` | Avisa antes de usarlo (`~/.claude/orchestrator/policy.md:57`) | Decidir cuál usar |
-| Copias de la tabla B desincronizadas | Revisión manual | No detectado | Editar `~/.claude/orchestrator/policy.md:23-30` y `~/.claude/agents/clasificador.md:17-22` a la vez |
-| Config de proyecto intenta relajar la política | Lectura por el router | Se ignora (`~/.claude/orchestrator/policy.md:56`) | Corregir la config de proyecto |
+| Agente de proyecto con nombre de worker | Existe `<repo>/.claude/agents/<worker>.md` | Avisa antes de usarlo (`~/.claude/orchestrator/policy.md:67`) | Decidir cuál usar |
+| Copias de la tabla B desincronizadas | Revisión manual; `tests/test_repo_consistency.py` solo comprueba la fila `busqueda` | No detectado salvo esa fila | Editar `~/.claude/orchestrator/policy.md:23-30` y `~/.claude/agents/clasificador.md:17-22` a la vez |
+| Lista de alto riesgo distinta en `clasificador` | `tests/test_repo_consistency.py` (`PolicySyncTests`) | CI en rojo | Editar `~/.claude/orchestrator/policy.md:53-59` y `~/.claude/agents/clasificador.md:23-29` a la vez |
+| Worker sin línea `Riesgo:` o con formato inválido | Lectura del reporte por el router | Riesgo mínimo medio → `verificador` (`~/.claude/orchestrator/policy.md:60`) | Si es frecuente, revisar el prompt del agente |
+| Worker declara `Riesgo: ninguno` pero el diff toca un elemento | `verificador` (contexto limpio) o comprobación del router | El riesgo final usa el máximo con el juicio del router (`~/.claude/orchestrator/policy.md:11`) | Nada |
+| La línea `Riesgo:` sube el riesgo tras un cambio en línea | Línea `Riesgo:` del trabajo en línea | Reaplicar tabla B y verificación (`~/.claude/orchestrator/policy.md:11`) | Nada |
+| El comando re-ejecutado por el router no da el resultado reportado | Comprobación del router (`~/.claude/orchestrator/policy.md:47`) | Cuenta como gate determinista en rojo | Nada, salvo que se agote el presupuesto |
+| La cita `archivo:línea` de `Explore` no coincide | Comprobación del router (`~/.claude/orchestrator/policy.md:47`) | `Explore` insuficiente → seguir en línea (`~/.claude/orchestrator/policy.md:17`) | Nada |
+| Hallazgo nuevo en recheck | `verificador` en `modo: recheck` lo marca como advertencia (`~/.claude/agents/verificador.md:15`) | No consume ciclo; sale en la consolidación final como pendiente (`~/.claude/orchestrator/policy.md:34`, `:63`) | Decidir si se corrige |
+| Defecto que ya existía en la base | `verificador` lo reproduce en `base_commit` | Advertencia, no bloqueante (`~/.claude/agents/verificador.md:13`) | Decidir si se abre tarea aparte |
+| Brief sin `base_commit` para `verificador` | Lectura del brief | No especificado `[VERIFICAR]`; sin base no puede separar bloqueante de preexistente | Pasar `git rev-parse HEAD` previo al cambio |
+| El router no puede derivar la superficie permitida | Al preparar el brief | AskUserQuestion con rutas candidatas antes de lanzar (`~/.claude/orchestrator/policy.md:39`) | Aprobar o corregir la lista |
+| Prompt bloqueante sin UI interactiva | AskUserQuestion no disponible | Mostrar el texto completo con todas las opciones y parar (`~/.claude/orchestrator/policy.md:15`) | Responder en el chat |
+| Config de proyecto intenta relajar la política | Lectura por el router | Se ignora (`~/.claude/orchestrator/policy.md:66`) | Corregir la config de proyecto |

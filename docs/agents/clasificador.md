@@ -15,7 +15,7 @@ NO ejecuta la tarea, NO edita y NO ejecuta comandos (`~/.claude/agents/clasifica
 Solo cuando la sesión principal no es opus; si lo es, el router clasifica en línea. Ver [../routing.md](../routing.md#paso-1-clasificar) y `~/.claude/orchestrator/policy.md:10`.
 
 ## Input
-La petición del usuario en el brief. NO ve CLAUDE.md ni la política (`omitClaudeMd: true`, `~/.claude/agents/clasificador.md:8`), por eso lleva su propia copia de la tabla B (`:17-22`). Puede leer la config de proyecto `.claude/orchestrator.md` si existe (`:25`). NO ve el historial del chat. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).
+La petición del usuario en el brief. NO ve CLAUDE.md ni la política (`omitClaudeMd: true`, `~/.claude/agents/clasificador.md:8`), por eso lleva su propia copia de la tabla B (`:17-22`) y de la lista de alto riesgo con los mismos números (`:23-29`). Puede leer la config de proyecto `.claude/orchestrator.md` si existe (`:31`). NO ve el historial del chat. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).
 
 ## Output
 Solo un JSON. Valores posibles en [../contracts/clasificador-output.schema.json](../contracts/clasificador-output.schema.json).
@@ -23,7 +23,7 @@ Solo un JSON. Valores posibles en [../contracts/clasificador-output.schema.json]
 | Campo | Valores |
 |---|---|
 | `tipo` | `busqueda`, `mecanica`, `implementacion`, `arquitectura`, `bug_dificil`, `revision` |
-| `riesgo` | `bajo`, `medio`, `alto` |
+| `riesgo` | `bajo`, `medio`, `alto` (alto si toca un elemento 1-5 de la lista de alto riesgo; mínimo medio con el 6; `:30-31`) |
 | `complejidad` | 1-5 |
 | `ruta` | `en_linea`, `Explore`, `rapido`, `implementador`, `arquitecto`, `verificador` |
 | `necesita_aprobacion` | `true`, `false` |
@@ -39,7 +39,8 @@ Clasificar es una tarea corta de patrón; haiku a effort low basta. Ver [../deci
 |---|---|---|
 | No devuelve JSON o devuelve JSON incoherente | Petición ambigua, modelo pequeño | El router clasifica en línea (`~/.claude/orchestrator/policy.md:10`) |
 | Riesgo infravalorado | Juicio del modelo | El router usa el máximo con su propio juicio (`~/.claude/orchestrator/policy.md:11`) |
-| `ruta` distinta de la tabla B de la política | Copias desincronizadas | No detectado automáticamente; mantener sincronizadas (`~/.claude/orchestrator/policy.md:23`) |
+| `ruta` distinta de la tabla B de la política | Copias desincronizadas | `tests/test_repo_consistency.py` comprueba la fila `busqueda`; el resto, mantener sincronizadas a mano (`~/.claude/orchestrator/policy.md:23`) |
+| Lista de alto riesgo distinta de §6bis | Copias desincronizadas | `tests/test_repo_consistency.py` falla en CI |
 | Agota 3 turnos | Lee demasiado | `[VERIFICAR: comportamiento al alcanzar maxTurns]` |
 
 ## Ejemplo
@@ -53,4 +54,4 @@ Output:
 
 ## Código
 - `~/.claude/agents/clasificador.md`
-- `~/.claude/orchestrator/policy.md:9-11`, `:23-30`
+- `~/.claude/orchestrator/policy.md:9-11`, `:23-30`, `:53-60`
