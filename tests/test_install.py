@@ -611,6 +611,14 @@ class BackupRetentionTests(InstallerCase):
             roots.append(relevo_install.make_backup(self.prefix, [relevo_install.MANIFEST_REL], root))
         self.assertEqual(roots[0], roots[1])
 
+    def test_backup_edited_by_hand_is_not_reused(self) -> None:
+        first = self.backup_of('{"a": 1}')
+        assert first is not None
+        (first / "settings.json").unlink()
+        again = self.backup_of('{"a": 1}')
+        self.assertNotEqual(again, first)
+        self.assertEqual((again / "settings.json").read_text(encoding="utf-8"), '{"a": 1}')  # type: ignore[operator]
+
     def test_legacy_backup_without_metadata_is_matched_by_content(self) -> None:
         legacy = self.prefix / ".relevo-backups" / "20250101-000000"
         legacy.mkdir(parents=True)

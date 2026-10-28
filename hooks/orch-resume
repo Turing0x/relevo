@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # SessionStart(compact|resume): imprime el logbook de la tarea activa (.claude/work/<tarea>/estado.md
 # en la raíz git de cwd) para que el router recupere contadores de presupuesto y siguiente paso tras
-# compactar o reanudar. Activa = el estado.md más reciente sin línea "estado: cerrada".
-# Solo lectura y nunca bloquea: siempre exit 0. Por seguridad no reinyecta nada si .claude/work/ no
-# está en el .gitignore de la raíz (un repo clonado podría traer un estado.md con instrucciones),
-# ni symlinks, ni archivos de otro usuario o de más de MAX_BYTES.
-import json, os, re, sys
+# compactar o reanudar. Activa = el estado.md más reciente cuya última línea no es "estado: cerrada".
+# Solo lectura y nunca bloquea: siempre exit 0. Un repo clonado podría traer un estado.md con
+# instrucciones, así que no reinyecta nada si .claude/work/ no está en el .gitignore de la raíz, ni
+# un estado.md versionado en git (si git no responde, tampoco), ni symlinks, ni archivos de otro
+# usuario o de más de MAX_BYTES.
+import json, os, re, subprocess, sys
 
 SOURCES = ("compact", "resume")
 MAX_BYTES = 64 * 1024
 MAX_CHARS = 6000
-CLOSED = re.compile(r"(?im)^\W*estado\W*:\W*cerrada\b")
+CLOSED = re.compile(r"(?i)^estado\s*:\s*cerrada\s*$")
+NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 IGNORED = re.compile(r"(?m)^\s*/?\.claude/(work/?|work/\*\*?|\*)?\s*$")
 
 def git_root(path):
@@ -30,24 +32,44 @@ def work_ignored(root):
     except OSError:
         return False
 
+def tracked(root):
+    # Archivos de .claude/work versionados en git; None si git no responde (entonces no se reinyecta).
+    try:
+        r = subprocess.run(["git", "-c", "core.fsmonitor=false", "-C", root, "ls-files", "-z", "--", ".claude/work"],
+                           capture_output=True, timeout=2, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return {p.decode("utf-8", "replace") for p in r.stdout.split(b"\0") if p}
+
+def is_closed(text):
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    return bool(lines) and bool(CLOSED.match(lines[-1]))
+
+def read_logbook(path):
+    # O_NOFOLLOW: sin carrera entre comprobar y abrir si alguien cambia el archivo por un symlink.
+    fd = os.open(path, os.O_RDONLY | NOFOLLOW)
+    with os.fdopen(fd, "rb") as f:
+        st = os.fstat(f.fileno())
+        if not os.path.isfile(path) or st.st_size > MAX_BYTES or (hasattr(os, "getuid") and st.st_uid != os.getuid()):
+            return None, None
+        return st, f.read(MAX_BYTES + 1).decode("utf-8", "replace")
+
 def candidates(root):
     work = os.path.join(root, ".claude", "work")
-    if os.path.islink(work) or not os.path.isdir(work):
+    if os.path.islink(os.path.join(root, ".claude")) or os.path.islink(work) or not os.path.isdir(work):
         return []
     found = []
     for name in os.listdir(work):
+        if os.path.islink(os.path.join(work, name)):
+            continue
         path = os.path.join(work, name, "estado.md")
         try:
-            st = os.lstat(path)
+            st, text = read_logbook(path)
         except OSError:
             continue
-        if os.path.islink(path) or not os.path.isfile(path) or os.path.islink(os.path.dirname(path)):
-            continue
-        if st.st_size > MAX_BYTES or (hasattr(os, "getuid") and st.st_uid != os.getuid()):
-            continue
-        with open(path, encoding="utf-8", errors="replace") as f:
-            text = f.read()
-        if CLOSED.search(text):
+        if st is None or is_closed(text):
             continue
         found.append((st.st_mtime, os.path.relpath(path, root), text))
     return sorted(found, reverse=True)
@@ -65,6 +87,17 @@ def main():
     if not work_ignored(root):
         print("relevo orch-resume: hay estado.md en .claude/work/ pero .claude/work/ no está en .gitignore; "
               "no se reinyecta. Propón /orchestrator-init.")
+        return
+    versioned = tracked(root)
+    if versioned is None:
+        print("relevo orch-resume: git no respondió; no se reinyecta estado.md. Léelo a mano si hace falta.")
+        return
+    skipped = [r for _, r, _ in active if r.replace(os.sep, "/") in versioned]
+    active = [a for a in active if a[1].replace(os.sep, "/") not in versioned]
+    if skipped:
+        print("relevo orch-resume: se ignoran estado.md versionados en git (no los escribió el router): "
+              + ", ".join(skipped))
+    if not active:
         return
     _, rel, text = active[0]
     if len(text) > MAX_CHARS:

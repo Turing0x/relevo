@@ -655,6 +655,18 @@ def backup_meta(root: Path) -> dict[str, Any]:
     return {"checksum": backup_checksum(files), "files": files}
 
 
+def backup_intact(root: Path, files: dict[str, str]) -> bool:
+    """True if ``root`` still holds every file of ``files`` with that digest (it may have been edited by hand)."""
+    for rel, digest in files.items():
+        path = root / rel
+        try:
+            if path.is_symlink() or backup_digest(path, rel) != digest:
+                return False
+        except OSError:
+            return False
+    return True
+
+
 def is_pinned(root: Path) -> bool:
     return (root / BACKUP_PIN).exists()
 
@@ -684,7 +696,7 @@ def make_backup(prefix: Path, rels: list[str], root: Path, pin: bool = False) ->
     checksum = backup_checksum(files)
     for old in reversed(list_backups(prefix)):
         meta = backup_meta(old)
-        if meta.get("checksum") == checksum:
+        if meta.get("checksum") == checksum and backup_intact(old, files):
             write_backup_meta(old, {**meta, "last_used": _stamp()})  # counts as recent for the retention
             if pin:
                 set_pinned(old, True)
