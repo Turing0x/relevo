@@ -1,0 +1,51 @@
+{
+  "$comment": "Fuente única de la tabla B (policy.md §2B) y de su copia en agents/clasificador.md. Edita aquí y ejecuta scripts/render_routing.py; make docs-check falla si las copias no coinciden.",
+  "umbrales": {
+    "busqueda_max_archivos": 3,
+    "busqueda_max_llamadas": 3,
+    "busqueda_max_tokens_k": 10,
+    "busqueda_max_secuenciales": 5,
+    "mecanica_max_archivos": 2,
+    "implementacion_max_archivos": 2,
+    "implementacion_max_complejidad": 2,
+    "arquitecto_min_complejidad": 4,
+    "arquitecto_mas_de_archivos": 5
+  },
+  "filas": [
+    {
+      "tipos": ["revision"],
+      "etiqueta": "revision",
+      "en_linea": null,
+      "si_no": "`verificador`",
+      "clasificador": "revision → verificador"
+    },
+    {
+      "tipos": ["busqueda"],
+      "etiqueta": "busqueda",
+      "en_linea": "≤{busqueda_max_archivos} archivos conocidos y cabe en 1 lote de ≤{busqueda_max_llamadas} llamadas (~{busqueda_max_tokens_k}k tokens)",
+      "si_no": "`Explore` (haiku); también si en línea ya van >{busqueda_max_secuenciales} búsquedas secuenciales",
+      "clasificador": "busqueda → en_linea si ≤{busqueda_max_archivos} archivos conocidos y cabe en 1 lote de ≤{busqueda_max_llamadas} llamadas (~{busqueda_max_tokens_k}k tokens); si no Explore (también si en línea ya van >{busqueda_max_secuenciales} búsquedas secuenciales)"
+    },
+    {
+      "tipos": ["mecanica"],
+      "etiqueta": "mecanica (incluye ejecutar tests/build y acciones de §6 puras)",
+      "en_linea": "≤{mecanica_max_archivos} archivos y salida corta",
+      "si_no": "`rapido` (haiku)",
+      "clasificador": "mecanica → en_linea si ≤{mecanica_max_archivos} archivos y salida corta; si no rapido"
+    },
+    {
+      "tipos": ["arquitectura", "bug_dificil"],
+      "etiqueta": "arquitectura, bug_dificil",
+      "en_linea": null,
+      "si_no": "`arquitecto` → plan → `implementador` por tramo (paralelo si archivos disjuntos)",
+      "clasificador": "arquitectura, bug_dificil → arquitecto"
+    },
+    {
+      "tipos": ["implementacion"],
+      "etiqueta": "implementacion (incluye escribir tests)",
+      "en_linea": "≤{implementacion_max_archivos} archivos, complejidad ≤{implementacion_max_complejidad}, riesgo no alto",
+      "si_no": "complejidad ≥{arquitecto_min_complejidad} o >{arquitecto_mas_de_archivos} archivos → como arquitectura; resto → `implementador` (sonnet)",
+      "clasificador": "implementacion → en_linea si ≤{implementacion_max_archivos} archivos, complejidad ≤{implementacion_max_complejidad} y riesgo no alto; si no, arquitecto si complejidad ≥{arquitecto_min_complejidad} o >{arquitecto_mas_de_archivos} archivos; resto implementador"
+    }
+  ]
+}

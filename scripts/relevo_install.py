@@ -22,12 +22,14 @@ import difflib
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,6 +42,11 @@ END_MARK = "<!-- relevo:end -->"
 IMPORT_LINE = "@orchestrator/policy.md"
 MANIFEST_REL = "orchestrator/.relevo-manifest.json"
 BACKUP_DIRNAME = ".relevo-backups"
+BACKUP_META = ".relevo-backup.json"
+BACKUP_PIN = ".pinned"
+BACKUP_KEEP = 5
+BACKUP_NAME = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?$")
+STAMP_FORMAT = "%Y%m%d-%H%M%S"
 DOCS_REL = "orchestrator/docs"
 DEPTH_KEY = "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
 REQUIRED_DIRS = ("agents", "hooks", "commands", "orchestrator", "docs", "templates")
@@ -166,6 +173,62 @@ def unified_diff(name: str, old: str, new: str) -> str:
 # --------------------------------------------------------------------------- settings.json
 
 
+def find_comment(text: str) -> int:
+    """Line number of the first ``//`` or ``/*`` outside a JSON string, or 0 if there is none."""
+    in_string = escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == "/" and text[index + 1 : index + 2] in ("/", "*"):
+            return text.count("\n", 0, index) + 1
+    return 0
+
+
+class DuplicateKeyError(ValueError):
+    def __init__(self, key: str) -> None:
+        super().__init__(key)
+        self.key = key
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise DuplicateKeyError(key)
+        seen[key] = value
+    return seen
+
+
+def parse_settings(text: str, path: Path, skip_hint: bool = True) -> Any:
+    """Parse settings.json strictly: relevo rewrites it as plain JSON, so it refuses whatever would be lost.
+
+    Comments (JSONC) and duplicate keys raise ``InstallError`` before anything is written.
+    """
+    alternative = " or re-run with --no-settings" if skip_hint else " and re-run"
+    line = find_comment(text)
+    if line:
+        raise InstallError(
+            f"{path} has a comment on line {line}; relevo rewrites settings.json as plain JSON and would drop it. "
+            f"Remove the comments{alternative} (nothing was changed)"
+        )
+    try:
+        return json.loads(text, object_pairs_hook=_no_duplicate_keys)
+    except DuplicateKeyError as exc:
+        raise InstallError(
+            f"{path} repeats the key {exc.key!r}; only one of them would survive a rewrite. "
+            f"Remove the duplicate{alternative} (nothing was changed)"
+        ) from exc
+    except ValueError as exc:
+        raise InstallError(f"{path} is not valid JSON ({exc}); fix it and re-run") from exc
+
+
 def check_settings_shape(settings: Any) -> None:
     """Raise ``ValueError`` if the parts of settings.json that relevo touches have unexpected types."""
     if not isinstance(settings, dict):
@@ -235,17 +298,21 @@ def merge_settings(user: dict[str, Any], tpl: dict[str, Any]) -> tuple[dict[str,
                 warnings.append(f"permissions.allow contains {entry!r}, which relevo lists under {key}; review it")
 
     for event, groups in tpl.get("hooks", {}).items():
+        # A command the user already registers for this event (under any matcher) is left alone. The template
+        # itself may list one command under several matchers (orch-resume: SessionStart "compact" and "resume").
         present = [
             hook.get("command") for group in merged.get("hooks", {}).get(event, []) for hook in group.get("hooks", [])
         ]
+        inserted: list[tuple[Any, Any]] = []
         for group in groups:
+            matcher = group.get("matcher")
             new_hooks = []
             for hook in group.get("hooks", []):
                 command = hook.get("command")
-                if any(_same_command(command, other) for other in present):
+                if any(_same_command(command, other) for other in present) or (matcher, command) in inserted:
                     continue
                 new_hooks.append(copy.deepcopy(hook))
-                present.append(command)
+                inserted.append((matcher, command))
             if not new_hooks:
                 continue
             new_group = {key: copy.deepcopy(value) for key, value in group.items() if key != "hooks"}
@@ -518,9 +585,13 @@ def merge_added(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _stamp() -> str:
+    return datetime.datetime.now().strftime(STAMP_FORMAT)
+
+
 def pick_backup_root(prefix: Path) -> Path:
     """Name of a backup directory that does not exist yet (it is created only if something is saved)."""
-    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = _stamp()
     base = prefix / BACKUP_DIRNAME
     root = base / stamp
     counter = 1
@@ -530,15 +601,149 @@ def pick_backup_root(prefix: Path) -> Path:
     return root
 
 
-def make_backup(prefix: Path, rels: list[str], root: Path) -> Path | None:
+def backup_digest(path: Path, rel: str) -> str:
+    """sha256 of a file for backup deduplication; the manifest is compared without its install time."""
+    data = path.read_bytes()
+    if rel == MANIFEST_REL:
+        with contextlib.suppress(ValueError):
+            manifest = json.loads(data.decode("utf-8"))
+            if isinstance(manifest, dict):
+                manifest.pop("installed_at", None)
+                data = json.dumps(manifest, sort_keys=True).encode("utf-8")
+    return sha256_bytes(data)
+
+
+def backup_checksum(files: dict[str, str]) -> str:
+    """Checksum of a backup set: its relative paths and the sha256 of each file."""
+    return sha256_bytes(json.dumps(sorted(files.items())).encode("utf-8"))
+
+
+def list_backups(prefix: Path) -> list[Path]:
+    """Backup directories created by relevo, oldest first by last use (symlinks and other names are ignored)."""
+    base = prefix / BACKUP_DIRNAME
+    if base.is_symlink() or not base.is_dir():
+        return []
+    found = [p for p in base.iterdir() if BACKUP_NAME.match(p.name) and p.is_dir() and not p.is_symlink()]
+    return sorted(found, key=_backup_order)
+
+
+def _backup_order(root: Path) -> tuple[int, int]:
+    """Time of last use in nanoseconds (for a backup made before 0.3.0, its name's stamp), then the name counter.
+
+    Nanoseconds and not the one-second stamp of the name: several runs within one second must keep their order.
+    """
+    match = BACKUP_NAME.match(root.name)
+    assert match is not None
+    used_ns = backup_meta(root).get("used_ns")
+    if not isinstance(used_ns, int) or isinstance(used_ns, bool):
+        used_ns = int(datetime.datetime.strptime(match.group(1), STAMP_FORMAT).timestamp()) * 10**9
+    return used_ns, int(match.group(2) or 0)
+
+
+def backup_meta(root: Path) -> dict[str, Any]:
+    """The metadata of a backup; for a backup made before 0.3.0 it is computed from its files."""
+    try:
+        data = json.loads(read_text(root / BACKUP_META))
+        if isinstance(data, dict) and isinstance(data.get("checksum"), str):
+            return data
+    except (OSError, ValueError):
+        pass
+    files: dict[str, str] = {}
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for filename in filenames:
+            path = Path(dirpath) / filename
+            rel = path.relative_to(root).as_posix()
+            if rel in (BACKUP_META, BACKUP_PIN):
+                continue
+            with contextlib.suppress(OSError):
+                files[rel] = backup_digest(path, rel)
+    return {"checksum": backup_checksum(files), "files": files}
+
+
+def backup_intact(root: Path, files: dict[str, str]) -> bool:
+    """True if ``root`` still holds every file of ``files`` with that digest (it may have been edited by hand)."""
+    for rel, digest in files.items():
+        path = root / rel
+        try:
+            if path.is_symlink() or backup_digest(path, rel) != digest:
+                return False
+        except OSError:
+            return False
+    return True
+
+
+def is_pinned(root: Path) -> bool:
+    return (root / BACKUP_PIN).exists()
+
+
+def set_pinned(root: Path, pinned: bool) -> None:
+    marker = root / BACKUP_PIN
+    if pinned:
+        atomic_write(marker, b"pinned by relevo_install.py; never deleted by the retention policy\n", 0o644)
+    elif marker.exists():
+        marker.unlink()
+
+
+def write_backup_meta(root: Path, meta: dict[str, Any]) -> None:
+    data = (json.dumps(meta, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    atomic_write(root / BACKUP_META, data, 0o644)
+
+
+def make_backup(prefix: Path, rels: list[str], root: Path, pin: bool = False) -> Path | None:
+    """Copy ``rels`` under ``root``; if an existing backup has exactly the same content, reuse it instead.
+
+    Returns the directory that holds the copies (``root`` or the reused one), or ``None`` if nothing existed.
+    """
     existing = [rel for rel in rels if os.path.lexists(prefix / rel)]
     if not existing:
         return None
+    files = {rel: backup_digest(prefix / rel, rel) for rel in existing}
+    checksum = backup_checksum(files)
+    for old in reversed(list_backups(prefix)):
+        meta = backup_meta(old)
+        if meta.get("checksum") == checksum and backup_intact(old, files):
+            write_backup_meta(old, {**meta, "last_used": _stamp(), "used_ns": time.time_ns()})  # recent again
+            if pin:
+                set_pinned(old, True)
+            return old
     for rel in existing:
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(prefix / rel, target)
+    meta = {"checksum": checksum, "created": _stamp(), "last_used": _stamp(), "used_ns": time.time_ns(), "files": files}
+    write_backup_meta(root, meta)
+    if pin:
+        set_pinned(root, True)
     return root
+
+
+def backups_in_use(prefix: Path, *manifests: dict[str, Any]) -> set[str]:
+    """Names of the backups that hold an original file a manifest will restore on uninstall."""
+    names: set[str] = set()
+    for manifest in manifests:
+        for saved in dict(manifest.get("overwritten", {})).values():
+            parts = Path(str(saved)).parts
+            if len(parts) >= 2 and parts[0] == BACKUP_DIRNAME:
+                names.add(parts[1])
+    return names
+
+
+def prune_backups(prefix: Path, protect: set[str], keep: int = BACKUP_KEEP, current: str = "") -> list[Path]:
+    """Keep the ``keep`` most recently used unpinned backups.
+
+    Pinned backups and those in ``protect`` (they hold an original a manifest will restore) do not count and are
+    never deleted; ``current``, the backup this run made or reused, counts but is never deleted either.
+    """
+    candidates = [p for p in list_backups(prefix) if not is_pinned(p) and p.name not in protect]
+    doomed = [p for p in candidates[: max(0, len(candidates) - keep)] if p.name != current]
+    for root in doomed:
+        shutil.rmtree(root)
+    return doomed
+
+
+def finish_backup(prefix: Path, backup: Path | None, protect: set[str]) -> None:
+    for root in prune_backups(prefix, protect, current=backup.name if backup is not None else ""):
+        print(f"  removed old backup {root.name} (keeping the last {BACKUP_KEEP} and the pinned ones)")
 
 
 def restore_or_remove(prefix: Path, rel: str, overwritten: dict[str, str]) -> None:
@@ -562,7 +767,9 @@ def _report(op: FileOp) -> str:
 # --------------------------------------------------------------------------- install
 
 
-def do_install(prefix: Path, *, dry_run: bool, force: bool, no_settings: bool, no_claude_md: bool) -> int:
+def do_install(
+    prefix: Path, *, dry_run: bool, force: bool, no_settings: bool, no_claude_md: bool, pin_backup: bool = False
+) -> int:
     src = SRC_ROOT
     for message in preflight(src, prefix):
         warn(message)
@@ -602,10 +809,7 @@ def do_install(prefix: Path, *, dry_run: bool, force: bool, no_settings: bool, n
         user: dict[str, Any] = {}
         if os.path.exists(settings_path):
             settings_old_text = read_text(settings_path)
-            try:
-                loaded = json.loads(settings_old_text)
-            except ValueError as exc:
-                raise InstallError(f"{settings_path} is not valid JSON ({exc}); fix it and re-run") from exc
+            loaded = parse_settings(settings_old_text, settings_path)
             if not isinstance(loaded, dict):
                 raise InstallError(f"{settings_path}: top-level value must be a JSON object")
             user = loaded
@@ -707,7 +911,15 @@ def do_install(prefix: Path, *, dry_run: bool, force: bool, no_settings: bool, n
     if claude_new_text is not None:
         backup_rels.append("CLAUDE.md")
     backup_rels.append(MANIFEST_REL)
-    backup = make_backup(prefix, backup_rels, backup_root)
+    backup = make_backup(prefix, backup_rels, backup_root, pin=pin_backup)
+    if backup is not None and backup != backup_root:
+        # An identical backup already existed and was reused: point the new originals at it.
+        old_rel = backup_root.relative_to(prefix).as_posix() + "/"
+        new_rel = backup.relative_to(prefix).as_posix() + "/"
+        manifest["overwritten"] = {
+            rel: new_rel + path[len(old_rel) :] if path.startswith(old_rel) else path
+            for rel, path in manifest["overwritten"].items()
+        }
     old_overwritten: dict[str, str] = dict(old_manifest.get("overwritten", {}))
 
     for op in file_changes:
@@ -727,8 +939,9 @@ def do_install(prefix: Path, *, dry_run: bool, force: bool, no_settings: bool, n
         atomic_write(claude_path, claude_new_text.encode("utf-8"), mode, follow_symlink=True)
     atomic_write(manifest_path, (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8"), 0o644)
 
+    finish_backup(prefix, backup, backups_in_use(prefix, old_manifest, manifest))
     if backup is not None:
-        print(f"Backup of replaced files: {backup}")
+        print(f"Backup of replaced files: {backup}{' (pinned)' if pin_backup else ''}")
     hint = "" if default else f" --prefix {prefix}"
     print("Done. Next steps:")
     print("  1. Restart Claude Code (settings and hooks are read at session start).")
@@ -774,8 +987,8 @@ def do_uninstall(prefix: Path, *, dry_run: bool) -> int:
     delete_settings = False
     if os.path.exists(settings_path):
         settings_old_text = read_text(settings_path)
+        user = parse_settings(settings_old_text, settings_path, skip_hint=False)
         try:
-            user = json.loads(settings_old_text)
             check_settings_shape(user)
         except ValueError as exc:
             raise InstallError(f"{settings_path}: {exc}; fix it and re-run") from exc
@@ -845,12 +1058,40 @@ def do_uninstall(prefix: Path, *, dry_run: bool) -> int:
         os.unlink(claude_path)
     manifest_path.unlink()
 
+    finish_backup(prefix, backup, set())
     if backup is not None:
         print(f"Backup of removed or modified files: {backup}")
     log = prefix / "orchestrator" / "log.jsonl"
     if log.exists():
         print(f"Kept your telemetry log: {log}")
     print("Done. Restart Claude Code to apply the change.")
+    return 0
+
+
+# --------------------------------------------------------------------------- backups
+
+
+def do_backups(prefix: Path, *, pin: str | None, unpin: str | None) -> int:
+    found = {root.name: root for root in list_backups(prefix)}
+    name = pin or unpin
+    if name is not None:
+        if name not in found:
+            raise InstallError(f"no backup named {name!r} in {prefix / BACKUP_DIRNAME}")
+        set_pinned(found[name], pin is not None)
+        print(f"{'pinned' if pin else 'unpinned'} {name}")
+        return 0
+    if not found:
+        print(f"No backups in {prefix / BACKUP_DIRNAME}.")
+        return 0
+    in_use: set[str] = set()
+    manifest_path = prefix / MANIFEST_REL
+    if manifest_path.exists():
+        in_use = backups_in_use(prefix, load_manifest(manifest_path))
+    print(f"Backups in {prefix / BACKUP_DIRNAME} (newest last; the last {BACKUP_KEEP} unpinned ones are kept):")
+    for root in found.values():
+        tags = [tag for tag, on in (("pinned", is_pinned(root)), ("holds an original", root.name in in_use)) if on]
+        files = len(backup_meta(root).get("files", {}))
+        print(f"  {root.name}  {files} files{'  [' + ', '.join(tags) + ']' if tags else ''}")
     return 0
 
 
@@ -871,10 +1112,17 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--force", action="store_true", help="back up and overwrite conflicting files")
     install.add_argument("--no-settings", action="store_true", help="do not touch settings.json")
     install.add_argument("--no-claude-md", action="store_true", help="do not touch CLAUDE.md")
+    install.add_argument("--pin-backup", action="store_true", help="never delete the backup this run makes")
 
     uninstall = sub.add_parser("uninstall", help="remove what the manifest says relevo installed")
     uninstall.add_argument("--prefix", metavar="DIR", help="target directory (default: ~/.claude)")
     uninstall.add_argument("--dry-run", action="store_true", help="show what would change and write nothing")
+
+    backups = sub.add_parser("backups", help=f"list backups; the last {BACKUP_KEEP} and the pinned ones are kept")
+    backups.add_argument("--prefix", metavar="DIR", help="target directory (default: ~/.claude)")
+    group = backups.add_mutually_exclusive_group()
+    group.add_argument("--pin", metavar="NAME", help="keep this backup forever")
+    group.add_argument("--unpin", metavar="NAME", help="let the retention policy delete this backup again")
     return parser
 
 
@@ -891,7 +1139,10 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
                 no_settings=args.no_settings,
                 no_claude_md=args.no_claude_md,
+                pin_backup=args.pin_backup,
             )
+        if args.command == "backups":
+            return do_backups(prefix, pin=args.pin, unpin=args.unpin)
         return do_uninstall(prefix, dry_run=args.dry_run)
     except InstallError as exc:
         print(f"error: {exc}", file=sys.stderr)

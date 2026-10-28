@@ -20,7 +20,8 @@ riesgo final = max(clasificador, tu juicio, disparadores de §6 por palabra clav
 6. RECHAZADO con `Causa: implementación` o dudosa → re-brief al mismo ejecutor (worker o en línea) con los hallazgos.
 7. Éxito: OK de `Explore`, o de `rapido` sin cambios de código → seguir en línea con su resultado; OK de `arquitecto` → `implementador` por tramo; código terminado (worker o en línea) → §5; §5 superado → §7.
 
-**B. Ruta inicial por tipo** (copia en `agents/clasificador.md`: mantener sincronizadas)
+**B. Ruta inicial por tipo** (generada desde `orchestrator/routing.json`; copia en `agents/clasificador.md`)
+<!-- relevo:routing:begin -->
 | Tipo | En línea si… | Si no |
 |---|---|---|
 | revision | — | `verificador` |
@@ -28,11 +29,13 @@ riesgo final = max(clasificador, tu juicio, disparadores de §6 por palabra clav
 | mecanica (incluye ejecutar tests/build y acciones de §6 puras) | ≤2 archivos y salida corta | `rapido` (haiku) |
 | arquitectura, bug_dificil | — | `arquitecto` → plan → `implementador` por tramo (paralelo si archivos disjuntos) |
 | implementacion (incluye escribir tests) | ≤2 archivos, complejidad ≤2, riesgo no alto | complejidad ≥4 o >5 archivos → como arquitectura; resto → `implementador` (sonnet) |
+<!-- relevo:routing:end -->
 
 ## 3. Presupuesto
 - Máx 1 llamada a `arquitecto` por tarea (incluido replan) salvo aprobación del usuario.
 - Máx 2 ciclos implementar→verificar; todo RECHAZADO cuenta y el replan no reinicia el contador. Tras el 2º: parar y reportar. Tras un RECHAZADO con `Causa: implementación` o dudosa, el `verificador` del 2º ciclo va en `modo: recheck` con `recheck_findings` (los bloqueantes previos) y revisa solo esos; un hallazgo nuevo sale como advertencia, no consume ni abre ciclo y va a §7 como pendiente del usuario. Tras replan (A5) la revisión es completa.
 - Paralelizar workers solo si tocan archivos disjuntos y son unidades de comportamiento independientes (~100+ líneas cada una); código, tests y docs de una misma unidad van juntos en el mismo worker. `maxTurns` de cada agente = tope por llamada.
+- Logbook: crea `.claude/work/<tarea>/estado.md` (raíz git) si la tarea usa `arquitecto`, tiene más de un tramo o no se podría retomar solo con la petición y el diff. Campos: petición literal, ruta, `arquitecto: N/1`, `ciclos: N/2`, tramos con estado, último veredicto, siguiente paso. Actualízalo tras cada worker, gate o veredicto; al cerrar (§7), última línea `estado: cerrada`. Tras compactar o reanudar (hook `orch-resume`), sus contadores mandan sobre la memoria del chat y nunca bajan. Sin repo git: no se crea.
 - Límites del proyecto en `.claude/orchestrator.md` (si existe) pisan estos valores **solo a la baja**.
 
 ## 4. Workers (sesión aislada)

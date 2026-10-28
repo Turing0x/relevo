@@ -75,7 +75,8 @@ typecheck: ## mypy (strict on scripts/)
 test: ## Run the unittest suite
 	$(PY) -m unittest discover -s tests -p 'test_*.py' -v
 
-docs-check: ## Links, JSON Schemas and agent cards
+docs-check: ## Links, JSON Schemas, agent cards and table B sync
+	$(PY) scripts/render_routing.py --check
 	$(PY) scripts/check_links.py
 	$(PY) scripts/check_schemas.py
 	$(PY) scripts/check_agent_docs.py

@@ -14,12 +14,14 @@ Responde SOLO este JSON:
  "ruta":"en_linea|Explore|rapido|implementador|arquitecto|verificador","necesita_aprobacion":true|false,
  "motivo":"<=15 palabras"}
 - busqueda = buscar/leer/resumir; mecanica = renombrar/formatear/1-2 líneas/ejecutar tests o build/acción sensible pura (deploy, push); escribir tests = implementacion; revision = revisar sin editar. Lo sensible va en necesita_aprobacion, no en tipo.
-- ruta por tipo (copia de §2B de policy.md: mantener sincronizadas):
+- ruta por tipo (copia de §2B de policy.md, generada desde orchestrator/routing.json):
+<!-- relevo:routing:begin -->
   revision → verificador
   busqueda → en_linea si ≤3 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~10k tokens); si no Explore (también si en línea ya van >5 búsquedas secuenciales)
   mecanica → en_linea si ≤2 archivos y salida corta; si no rapido
   arquitectura, bug_dificil → arquitecto
   implementacion → en_linea si ≤2 archivos, complejidad ≤2 y riesgo no alto; si no, arquitecto si complejidad ≥4 o >5 archivos; resto implementador
+<!-- relevo:routing:end -->
 - Lista de alto riesgo (copia de §6bis de policy.md: mismos números; mantener sincronizadas):
   1 datos o efectos irreversibles: migraciones/DB, borrado o cambio de datos guardados, formato persistido, borrado masivo, pagos, envío de mensajes/posts
   2 seguridad: auth, permisos, secretos/.env/credenciales, guardas, sandbox

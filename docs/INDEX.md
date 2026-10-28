@@ -40,6 +40,7 @@ El orquestador es una política en lenguaje natural (`~/.claude/orchestrator/pol
 | [decisions/0007-presupuesto.md](decisions/0007-presupuesto.md) | 1 `arquitecto` y 2 ciclos por tarea | — |
 | [decisions/0008-guard-secrets-ask.md](decisions/0008-guard-secrets-ask.md) | Hook `guard-secrets` con `ask` | — |
 | [decisions/0009-riesgo-declarado-y-recheck.md](decisions/0009-riesgo-declarado-y-recheck.md) | Lista de alto riesgo, línea `Riesgo:`, recheck y severidad con base | — |
+| [decisions/0010-fuente-unica-logbook-y-backups.md](decisions/0010-fuente-unica-logbook-y-backups.md) | Tabla B generada desde `routing.json`, logbook `estado.md` con el hook `orch-resume`, y backups del instalador con retención | — |
 | [audit-pending.md](audit-pending.md) | Comprobaciones en ejecución pendientes (`[VERIFICAR]`) | Hagas la auditoría |
 
 ## Orden de lectura recomendado

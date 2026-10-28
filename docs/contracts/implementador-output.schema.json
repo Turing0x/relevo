@@ -32,7 +32,7 @@
     "riesgo": {
       "type": "string",
       "pattern": "^(?:[1-6](?:,[1-6])* \\(.+\\)|ninguno)$",
-      "description": "Línea `Riesgo:` obligatoria: elementos de la lista de alto riesgo (~/.claude/orchestrator/policy.md:53-60) o \"ninguno\". 1-5 → riesgo alto; 6 → mínimo medio; ausente → mínimo medio.",
+      "description": "Línea `Riesgo:` obligatoria: elementos de la lista de alto riesgo (~/.claude/orchestrator/policy.md:56-63) o \"ninguno\". 1-5 → riesgo alto; 6 → mínimo medio; ausente → mínimo medio.",
       "examples": [
         "ninguno",
         "3 (cambia el formato de salida que lee orch-stats)",

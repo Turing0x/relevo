@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Brief: `## Superficie permitida` section (never `.` or absolute paths), `base_commit`, `modo` and `recheck_findings[]`.
 - Router check before the final summary: re-run 1 reported command and open 1 `Explore` citation.
 - ADR 0009 and consistency tests for the risk line, the high-risk list and the `busqueda` row.
+- `orchestrator/routing.json`, the single source of table B (rows and thresholds), and `scripts/render_routing.py`, which rewrites both copies (policy §2B and `clasificador`) between `relevo:routing` markers. `--check` runs in `make docs-check` and CI.
+- Task logbook `.claude/work/<task>/estado.md` (policy §3) with the request, route, `arquitecto: N/1`, `ciclos: N/2`, slices, last verdict and next step; its counters win over the chat memory after a compaction and never go down.
+- `orch-resume` hook (SessionStart, matchers `compact` and `resume`, 5 s timeout) that prints the open logbook of the current git root. It refuses when `.claude/work/` is not gitignored.
+- Installer: `--pin-backup` and a `backups` command (`--pin`, `--unpin`) to list and pin backups.
+- ADR 0010.
 
 ### Changed
 
@@ -20,6 +25,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The 2nd cycle after a `RECHAZADO` for implementation is a recheck; a new finding is a warning and does not use a cycle.
 - Parallel workers only for independent behaviour units (~100+ lines each, code + tests + docs together).
 - Blocking prompts (`PENDIENTE_APROBACION`, `AMPLIAR`) are relayed with every option verbatim.
+- Backups are deduplicated by checksum and only the 5 most recently used are kept, plus pinned ones and those holding an original replaced with `--force`.
+- The `settings.json` merge fails without writing anything if the file has comments (JSONC) or duplicate keys.
+- The hook merge may register one template command under several matchers; a command the user already has for that event is still left alone.
 
 ## [0.1.0] - 2026-10-22
 
