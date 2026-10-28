@@ -32,7 +32,7 @@ Solo se añaden reglas y comprobaciones; ninguna se relaja.
 
 ## Consecuencias
 - Cambiar un umbral o una fila de la tabla B exige editar `routing.json` y ejecutar `python3 scripts/render_routing.py`; editar las copias a mano rompe CI.
-- El check #6 de [../audit-pending.md](../audit-pending.md) se cierra por diseño. Queda `[VERIFICAR]` (check #8) que Claude Code añade al contexto la salida de `orch-resume` en `compact` y `resume`; si no lo hace, el logbook sigue en disco y el router puede leerlo a mano.
+- El check #6 de [../audit-pending.md](../audit-pending.md) se cierra por diseño. El check #8 (que Claude Code añade al contexto la salida de `orch-resume` en `compact` y `resume`) lo cierra el E2E de [0011](0011-doctor-y-e2e.md); si una versión futura deja de hacerlo, el logbook sigue en disco y el router puede leerlo a mano.
 - Sigue sin enforcement: crear y actualizar el logbook es texto de política ([0001-politica-con-refuerzo-duro.md](0001-politica-con-refuerzo-duro.md)). El hook solo lo reinyecta.
 - El instalador borra backups antiguos sin preguntar. Lo limita a su propio directorio, conserva 5, respeta los fijados y nunca borra un original que vaya a restaurar.
 - Un `settings.json` con comentarios que antes daba "not valid JSON" ahora da un error que nombra la línea y la salida `--no-settings`.

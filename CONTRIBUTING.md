@@ -67,9 +67,10 @@ Examples: `fix(hooks): block git push with a leading -C option`, `docs(agents): 
 | `make check` | Everything below: `lint`, `lint-workflows`, `typecheck`, `test` and `docs-check` |
 | `make test` | The `unittest` suite (standard library only) |
 | `make lint` | Hidden-Unicode check, syntax compilation of every Python file and hook, `ruff check`, `ruff format --check` on new code, `shellcheck` |
-| `make typecheck` | `mypy` on scripts (strict), tests, `stats.py` and each hook |
+| `make typecheck` | `mypy` on scripts and `doctor.py` (strict), tests, `stats.py` and each hook |
 | `make docs-check` | Table B in sync with `orchestrator/routing.json`, broken links and anchors, JSON Schema validity, and agent-to-doc consistency |
 | `make lint-workflows` | `actionlint` and `zizmor` on `.github/workflows` |
+| `make e2e` | Optional, not part of `check` or CI: the real `claude` CLI against a local fake of the Messages API (`tests/e2e/`). No API key and no cost; needs Claude Code installed or `RELEVO_CLAUDE_BIN` |
 
 If a tool is not installed, the local run prints `SKIP: <tool> not installed (run make install-dev)` and continues with exit code 0. That is expected on a bare machine: the tests and the docs checks still run. In CI (`CI` set) a missing tool is an error, so the full set of checks always runs there. Before opening a PR, make sure `make test` and `make docs-check` pass, and run the rest if you installed the dev tools.
 

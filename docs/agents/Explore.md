@@ -34,7 +34,7 @@ Búsqueda de alto volumen y bajo razonamiento: haiku es el más barato y aísla 
 | Resultado insuficiente | Búsqueda difícil para haiku a effort low | El router sigue en línea (`~/.claude/orchestrator/policy.md:17`) |
 | Cita `archivo:línea` que no coincide | Evidencia inventada o desplazada | La comprobación del router abre 1 cita; si no coincide, `Explore` insuficiente (`~/.claude/orchestrator/policy.md:50`) |
 | Pide leer un secreto | La respuesta está en `.env` o credenciales | `PENDIENTE_APROBACION` → AskUserQuestion (`~/.claude/orchestrator/policy.md:15`) |
-| Llega a 20 turnos | Búsqueda demasiado amplia | `[VERIFICAR: comportamiento al alcanzar maxTurns]`; `/orch-stats` lo cuenta en `tope` |
+| Llega a 20 turnos | Búsqueda demasiado amplia | Vuelve al router con una nota de límite de turnos y sin `ESTADO`; no se dispara `SubagentStop` y no queda línea en `log.jsonl` (E2E con Claude Code 2.1.312, [../audit-pending.md](../audit-pending.md) #2); por eso `/orch-stats` no lo cuenta en `tope` |
 | Reporte sin formato | Incumple el contrato | No especificado; telemetría `SIN_ESTADO` |
 
 ## Ejemplo

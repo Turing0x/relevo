@@ -11,7 +11,7 @@ Multi-model orchestrator for Claude Code: routes each task to haiku, sonnet or o
 
 ## What it is
 
-relevo is a set of files for [Claude Code](https://code.claude.com/docs/en/overview): one policy written in natural language, six subagents ("workers"), four hooks, a permissions template and two slash commands. The main Claude Code session reads the policy on every start and acts as a **router**: for each request it decides whether to do the work itself or hand it to a worker running on a cheaper or stronger model.
+relevo is a set of files for [Claude Code](https://code.claude.com/docs/en/overview): one policy written in natural language, six subagents ("workers"), four hooks, a permissions template and three slash commands. The main Claude Code session reads the policy on every start and acts as a **router**: for each request it decides whether to do the work itself or hand it to a worker running on a cheaper or stronger model.
 
 Compared with using a single agent for everything, it gives you three things (source: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), "Propósito"):
 
@@ -83,8 +83,9 @@ cd relevo
 Then:
 
 1. Restart Claude Code and open a new session. `/agents` should list the 6 workers.
-2. Optional: run `/orchestrator-init` inside each project where you want project-level rules (test/lint/build commands, sensitive paths).
-3. After some use, run `/orch-stats` to see per-agent telemetry.
+2. Run `/orch-doctor` to check the installation. It is read-only: each check prints `pass`, `warn` or `fail` with a remedy that it never applies itself.
+3. Optional: run `/orchestrator-init` inside each project where you want project-level rules (test/lint/build commands, sensitive paths).
+4. After some use, run `/orch-stats` to see per-agent telemetry.
 
 **Try it without touching your config.** The installer writes under `$HOME`, so point `HOME` at a throwaway directory:
 
@@ -107,7 +108,7 @@ Default prefix is `~/.claude`. Nothing is written outside it.
 | `agents/*.md` (6 workers) | `agents/` | Copied. A name clash with an unrelated agent aborts unless `--force` |
 | `hooks/*` | `hooks/` | Copied with mode `0755` |
 | `commands/*.md` | `commands/` | Copied |
-| `orchestrator/{policy.md,project-template.md,stats.py}` | `orchestrator/` | Copied |
+| `orchestrator/{policy.md,project-template.md,stats.py,doctor.py,routing.json}`, `scripts/render_routing.py` | `orchestrator/` | Copied (`doctor.py` reuses `render_routing.py` and `routing.json` for its `routing:sync` check) |
 | `docs/**` | `orchestrator/docs/**` | Copied |
 | `templates/settings.example.json` | `settings.json` | **Merged**, never overwritten (see below) |
 | `templates/CLAUDE.md.example` | `CLAUDE.md` | Appended as a block between `<!-- relevo:begin -->` and `<!-- relevo:end -->`, unless the file already has an `@orchestrator/policy.md` line |
@@ -148,11 +149,11 @@ Please read this before relying on it.
 - **`guard-secrets` is defense in depth, not a sandbox.** It asks for confirmation when a call explicitly names `.env`, private keys or credentials. Per its own header, it does not detect: a recursive grep over a directory without naming the secret, implicit loading (dotenv, `printenv` after `source`), obfuscation, or the `Glob` tool. It also has false positives (secret names used as a search pattern), and it fails open on an internal error.
 - **`block-force-push` has known gaps.** It does not catch a variable holding `git` (`G=git; $G push -f`), a git alias, or `eval "git push -f"` with the argument in quotes. It also fails open on an internal error. Fixing these would be a separate hook change. See [`SECURITY.md`](SECURITY.md#ai-orchestrator-specific-risks).
 - **`Explore` and `verificador` have `Bash`.** "Never edit files" is enforced only by their prompts, not by tool restrictions.
-- **Budget counters are not persisted.** The counts for `arquitecto` calls and review cycles live in the router's context only. What happens to them when a long session is compacted has not been verified (check #6 in [`docs/audit-pending.md`](docs/audit-pending.md)).
+- **Budget counters are persisted only if the router writes them.** The counts for `arquitecto` calls and review cycles live in the task logbook `.claude/work/<task>/estado.md`, which the `orch-resume` hook prints after a compaction or a resume. Writing the logbook is policy text, not enforced.
 - **Telemetry output tokens are estimates** (characters generated divided by 4, excluding thinking). Input and cache tokens come from the transcript.
 - **It installs at user level.** It affects every project you open with Claude Code and adds global `ask` rules and hooks to your `settings.json`.
-- **`Explore` replaces the built-in one.** The worker file is named `Explore`, which is meant to shadow Claude Code's built-in agent of the same name. Not yet confirmed: this is check #1 in [`docs/audit-pending.md`](docs/audit-pending.md) [VERIFICAR].
-- **Several failure paths are unspecified.** Worker timeouts or crashes, and what a worker returns when it reaches `maxTurns`, are not defined by the policy or the hooks; the router improvises. `block-force-push` and `guard-secrets` also produce false positives when a command merely contains the trigger text. The two copies of routing table B (`orchestrator/policy.md` and `agents/clasificador.md`) are kept in sync by hand. See [`docs/failure-modes.md`](docs/failure-modes.md).
+- **`Explore` replaces the built-in one.** The worker file is named `Explore`, which is meant to shadow Claude Code's built-in agent of the same name. Confirmed by the end-to-end tests with Claude Code 2.1.312 (check #1 in [`docs/audit-pending.md`](docs/audit-pending.md)).
+- **Several failure paths are unspecified.** The policy does not say what the router does when a worker times out, fails with an API error or stops at `maxTurns`; the router improvises. The end-to-end tests show what Claude Code returns in those cases, and that no telemetry line is written for them. `block-force-push` and `guard-secrets` also produce false positives when a command merely contains the trigger text. See [`docs/failure-modes.md`](docs/failure-modes.md).
 - **Cost.** `arquitecto` and `verificador` run on opus, which is expensive. The policy limits their use, but it does not cap spend.
 - **Technical docs are in Spanish.** This README and the community files are in English; [`docs/`](docs/INDEX.md) is not translated yet.
 - **Not affiliated with or endorsed by Anthropic.** "Claude" and "Claude Code" are Anthropic's names; this is an independent project.

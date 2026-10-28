@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `orch-resume` hook (SessionStart, matchers `compact` and `resume`, 5 s timeout) that prints the open logbook of the current git root. It refuses when `.claude/work/` is not gitignored.
 - Installer: `--pin-backup` and a `backups` command (`--pin`, `--unpin`) to list and pin backups.
 - ADR 0010.
+- `orchestrator/doctor.py` and the `/orch-doctor` command: a read-only diagnosis with nine checks (`python:version`, `frontmatter:valid`, `hooks:executable`, `hooks:registered`, `env`, `manifest:drift`, `claude-md:import`, `gitignore:work`, `routing:sync`). Each one has a stable id, a `pass`/`warn`/`fail` status and a remedy that is never applied automatically. Exit code 1 if any check fails.
+- The installer also copies `doctor.py`, `routing.json` and `scripts/render_routing.py` into `orchestrator/` (recorded in the manifest), so `routing:sync` reuses the same render as CI.
+- End-to-end tests in `tests/e2e/`: the real Claude Code CLI against a local fake of the Messages API (`ANTHROPIC_BASE_URL`), with scripted replies. They cover force push, `.env` reads, worker reports and telemetry, `maxTurns`, worker API errors, the spawn depth limit, the `Explore` override, and `orch-resume` on `compact` and `resume`. Opt-in with `make e2e`; not part of `make check` or CI. No API key and no cost.
+- ADR 0011.
 
 ### Changed
 
@@ -28,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Backups are deduplicated by checksum and only the 5 most recently used are kept, plus pinned ones and those holding an original replaced with `--force`.
 - The `settings.json` merge fails without writing anything if the file has comments (JSONC) or duplicate keys.
 - The hook merge may register one template command under several matchers; a command the user already has for that event is still left alone.
+- `orch-resume` walks `.claude/work` through directory file descriptors (`O_NOFOLLOW` relative to each parent, `os.listdir(fd)`) instead of a path `islink` check followed by path access.
+- Docs: audit-pending checks #1, #2, #3, #4 and #8 are closed by the end-to-end tests (#5 partly). With Claude Code 2.1.312, a worker stopped by `maxTurns` or by an API error does not fire `SubagentStop`, and in `claude -p` the async `orch-telemetry` hook never runs, so none of those leave a telemetry line. `docs/ARCHITECTURE.md` no longer claims that every worker is logged.
 
 ## [0.1.0] - 2026-10-22
 

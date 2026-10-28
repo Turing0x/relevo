@@ -4,7 +4,7 @@ Este archivo define cada término de la documentación del orquestador. Cada té
 
 | Término | Definición | Dónde aparece en el código |
 |---|---|---|
-| orquestador | Sistema formado por la política, seis workers, cuatro hooks, permisos y dos comandos que reparte el trabajo de una sesión de Claude Code entre modelos. No es un programa: la política la interpreta el modelo de la sesión. | `~/.claude/orchestrator/policy.md`, `~/.claude/CLAUDE.md:6` |
+| orquestador | Sistema formado por la política, seis workers, cuatro hooks, permisos y tres comandos que reparte el trabajo de una sesión de Claude Code entre modelos. No es un programa: la política la interpreta el modelo de la sesión. | `~/.claude/orchestrator/policy.md`, `~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`) |
 | política | Texto en lenguaje natural con las reglas del orquestador. Se carga en cada sesión vía `@orchestrator/policy.md`. | `~/.claude/orchestrator/policy.md` |
 | router | La sesión principal de Claude Code cuando aplica la política: clasifica, elige ruta, lanza workers y consolida. | `~/.claude/orchestrator/policy.md:4` |
 | worker | Subagente de Claude Code definido por el orquestador en `~/.claude/agents/`: `clasificador`, `Explore`, `rapido`, `implementador`, `arquitecto`, `verificador`. | `~/.claude/agents/*.md` |
@@ -50,6 +50,9 @@ Este archivo define cada término de la documentación del orquestador. Cada té
 | `.claude/work/` | Carpeta en la raíz git del proyecto donde los workers escriben planes y reportes largos. | `~/.claude/orchestrator/policy.md:44` |
 | copia de seguridad del instalador | Directorio `<prefix>/.relevo-backups/<marca-de-tiempo>/` con lo que el instalador o el desinstalador iban a cambiar. Si su contenido coincide (checksum) con una copia anterior, se reutiliza esa; se conservan las 5 usadas más recientemente, más las fijadas (`.pinned`) y las que guardan un original de `--force`. | `scripts/relevo_install.py` (`make_backup`, `prune_backups`) |
 | telemetría | Registro de métricas por worker en `~/.claude/orchestrator/log.jsonl`, escrito por el hook `orch-telemetry`. | `~/.claude/hooks/orch-telemetry` |
+| doctor | Diagnóstico de solo lectura de la instalación: `~/.claude/orchestrator/doctor.py`, lanzado con `/orch-doctor`. Nueve comprobaciones; sale con 1 si alguna falla. Nunca aplica un remedio. | `~/.claude/orchestrator/doctor.py:598-608`, `~/.claude/commands/orch-doctor.md` |
+| comprobación del doctor | Una prueba con id estable (`hooks:registered`, `manifest:drift`, `routing:sync`…), un estado `pass`, `warn` o `fail` y, si no pasa, un remedio que propone al humano. | `~/.claude/orchestrator/doctor.py:598-608` |
+| E2E con modelo falso | Tests del repo que ejecutan Claude Code real contra un servidor local que imita la API de Messages (`ANTHROPIC_BASE_URL`), con respuestas guionizadas, para observar hooks y telemetría sin API key. Opcionales: `make e2e`. | `tests/e2e/` (repo) |
 | `SIN_ESTADO` | Valor de `status` en telemetría cuando el reporte no contiene ESTADO, VEREDICTO ni JSON. | `~/.claude/hooks/orch-telemetry:48-52` |
 | effort | Nivel de razonamiento del modelo por worker: `low`, `medium`, `high`, `xhigh`, `max`. | `~/.claude/agents/*.md:5` |
 | `maxTurns` | Tope de turnos de un worker por llamada. | `~/.claude/agents/*.md:6` |

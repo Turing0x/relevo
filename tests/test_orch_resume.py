@@ -154,6 +154,21 @@ class OrchResumeTests(unittest.TestCase):
         (self.repo / ".claude").symlink_to(elsewhere)
         self.assertEqual(self.run_hook(self.event()).stdout, "")
 
+    def test_skips_a_symlinked_work_directory(self) -> None:
+        elsewhere = Path(self._tmp.name) / "elsewhere"
+        (elsewhere / "login").mkdir(parents=True)
+        (elsewhere / "login" / "estado.md").write_text(ESTADO, encoding="utf-8")
+        (self.repo / ".claude").mkdir()
+        self.work.symlink_to(elsewhere)
+        self.assertEqual(self.run_hook(self.event()).stdout, "")
+
+    def test_work_directory_is_walked_through_file_descriptors(self) -> None:
+        # No path-based islink check followed by listdir/open: each component is opened relative to its parent fd.
+        source = HOOK.read_text(encoding="utf-8")
+        self.assertNotIn("islink", source)
+        self.assertIn("os.listdir(work_fd)", source)
+        self.assertIn("dir_fd=parent_fd", source)
+
     def test_refuses_to_inject_when_work_dir_is_not_gitignored(self) -> None:
         (self.repo / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
         self.logbook("login")

@@ -51,7 +51,7 @@ Sonnet es el modelo de código equilibrado; effort high porque la prioridad es c
 | Declara un elemento de riesgo que el clasificador no vio | El diff real toca más de lo previsto | El riesgo final sube; si llega a medio, `verificador` (`~/.claude/orchestrator/policy.md:11`, `:48`) |
 | Sin línea `Riesgo:` | Incumple el contrato | Riesgo mínimo medio (`~/.claude/orchestrator/policy.md:63`) |
 | `RECHAZADO` del `verificador` por segunda vez | Calidad insuficiente | Parar y reportar (`~/.claude/orchestrator/policy.md:36`) |
-| Llega a 40 turnos | Tarea mal acotada | `[VERIFICAR: comportamiento al alcanzar maxTurns]` |
+| Llega a 40 turnos | Tarea mal acotada | Vuelve al router con una nota de límite de turnos y sin `ESTADO`; no se dispara `SubagentStop` y no queda línea en `log.jsonl` (E2E con Claude Code 2.1.312, [../audit-pending.md](../audit-pending.md) #2) |
 
 ## Ejemplo
 Ilustrativo.

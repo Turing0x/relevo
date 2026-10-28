@@ -50,7 +50,9 @@ STAMP_FORMAT = "%Y%m%d-%H%M%S"
 DOCS_REL = "orchestrator/docs"
 DEPTH_KEY = "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
 REQUIRED_DIRS = ("agents", "hooks", "commands", "orchestrator", "docs", "templates")
-ORCHESTRATOR_FILES = ("policy.md", "project-template.md", "stats.py")
+ORCHESTRATOR_FILES = ("policy.md", "project-template.md", "stats.py", "doctor.py", "routing.json")
+# Installed next to doctor.py, which reuses it for the routing:sync check.
+SCRIPT_FILES = {"orchestrator/render_routing.py": "scripts/render_routing.py"}
 LITERAL_HOME = "~/.claude"
 
 
@@ -436,6 +438,9 @@ def preflight(src: Path, prefix: Path) -> list[str]:
     for name in ORCHESTRATOR_FILES:
         if not (src / "orchestrator" / name).is_file():
             raise InstallError(f"missing source file orchestrator/{name}")
+    for source in SCRIPT_FILES.values():
+        if not (src / source).is_file():
+            raise InstallError(f"missing source file {source}")
     for name in ("settings.example.json", "CLAUDE.md.example"):
         if not (src / "templates" / name).is_file():
             raise InstallError(f"missing source file templates/{name}")
@@ -481,6 +486,8 @@ def plan_files(src: Path) -> dict[str, tuple[Path, int]]:
         add(f"commands/{path.name}", path, 0o644)
     for name in ORCHESTRATOR_FILES:
         add(f"orchestrator/{name}", src / "orchestrator" / name, 0o644)
+    for rel, source in SCRIPT_FILES.items():
+        add(rel, src / source, 0o644)
     docs = src / "docs"
     for dirpath, dirnames, filenames in os.walk(docs):
         dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d != "__pycache__")
@@ -947,7 +954,8 @@ def do_install(
     print("  1. Restart Claude Code (settings and hooks are read at session start).")
     print("  2. Run /agents and check that the six relevo agents are listed.")
     print("  3. Optional, per project: run /orchestrator-init.")
-    print("  4. Later, run /orch-stats to see the telemetry summary.")
+    print("  4. Run /orch-doctor to check the installation (read-only).")
+    print("  5. Later, run /orch-stats to see the telemetry summary.")
     print(f"To uninstall: ./scripts/uninstall.sh{hint}")
     return 0
 
