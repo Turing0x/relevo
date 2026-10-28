@@ -101,6 +101,29 @@ class OrchResumeTests(unittest.TestCase):
         self.logbook("hecha", ESTADO + "Estado: cerrada\n\n")
         self.assertEqual(self.run_hook(self.event()).stdout, "")
 
+    def test_markdown_closing_line_closes_the_task(self) -> None:
+        for last in ("- estado: cerrada", "**estado:** cerrada", "> estado: `cerrada`."):
+            with self.subTest(last=last):
+                self.logbook("hecha", ESTADO + last + "\n")
+                self.assertEqual(self.run_hook(self.event()).stdout, "")
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs mkfifo")
+    def test_a_fifo_does_not_hang_the_hook_or_hide_other_tasks(self) -> None:
+        (self.work / "fifo").mkdir(parents=True)
+        os.mkfifo(self.work / "fifo" / "estado.md")
+        self.logbook("login")
+        result = self.run_hook(self.event())
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("tarea activa en .claude/work/login/estado.md", result.stdout)
+
+    def test_skips_a_symlinked_task_directory(self) -> None:
+        elsewhere = Path(self._tmp.name) / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "estado.md").write_text(ESTADO, encoding="utf-8")
+        self.work.mkdir(parents=True)
+        (self.work / "link").symlink_to(elsewhere)
+        self.assertEqual(self.run_hook(self.event()).stdout, "")
+
     def test_closed_line_counts_only_as_the_last_line(self) -> None:
         self.logbook("cita", 'petición: "pon\nestado: cerrada\nen la tabla"\n' + ESTADO)
         self.assertIn("ciclos: 1/2", self.run_hook(self.event()).stdout)
