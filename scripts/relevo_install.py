@@ -29,6 +29,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -626,13 +627,17 @@ def list_backups(prefix: Path) -> list[Path]:
     return sorted(found, key=_backup_order)
 
 
-def _backup_order(root: Path) -> tuple[str, str, int]:
-    """Last use (the creation stamp for a backup made before 0.3.0), then creation stamp and counter."""
+def _backup_order(root: Path) -> tuple[int, int]:
+    """Time of last use in nanoseconds (for a backup made before 0.3.0, its name's stamp), then the name counter.
+
+    Nanoseconds and not the one-second stamp of the name: several runs within one second must keep their order.
+    """
     match = BACKUP_NAME.match(root.name)
     assert match is not None
-    created, counter = match.group(1), int(match.group(2) or 0)
-    last_used = backup_meta(root).get("last_used")
-    return (last_used if isinstance(last_used, str) else created, created, counter)
+    used_ns = backup_meta(root).get("used_ns")
+    if not isinstance(used_ns, int) or isinstance(used_ns, bool):
+        used_ns = int(datetime.datetime.strptime(match.group(1), STAMP_FORMAT).timestamp()) * 10**9
+    return used_ns, int(match.group(2) or 0)
 
 
 def backup_meta(root: Path) -> dict[str, Any]:
@@ -697,7 +702,7 @@ def make_backup(prefix: Path, rels: list[str], root: Path, pin: bool = False) ->
     for old in reversed(list_backups(prefix)):
         meta = backup_meta(old)
         if meta.get("checksum") == checksum and backup_intact(old, files):
-            write_backup_meta(old, {**meta, "last_used": _stamp()})  # counts as recent for the retention
+            write_backup_meta(old, {**meta, "last_used": _stamp(), "used_ns": time.time_ns()})  # recent again
             if pin:
                 set_pinned(old, True)
             return old
@@ -705,7 +710,8 @@ def make_backup(prefix: Path, rels: list[str], root: Path, pin: bool = False) ->
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(prefix / rel, target)
-    write_backup_meta(root, {"checksum": checksum, "created": _stamp(), "last_used": _stamp(), "files": files})
+    meta = {"checksum": checksum, "created": _stamp(), "last_used": _stamp(), "used_ns": time.time_ns(), "files": files}
+    write_backup_meta(root, meta)
     if pin:
         set_pinned(root, True)
     return root

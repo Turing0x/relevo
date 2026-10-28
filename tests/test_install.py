@@ -638,11 +638,21 @@ class BackupRetentionTests(InstallerCase):
         oldest = self.backup_of('{"n": "oldest"}')
         for n in range(5):
             self.backup_of(json.dumps({"n": n}))
-        with mock.patch.object(relevo_install, "_stamp", return_value="20991231-235959"):
-            self.assertEqual(self.backup_of('{"n": "oldest"}'), oldest)
+        self.assertEqual(self.backup_of('{"n": "oldest"}'), oldest)
         relevo_install.prune_backups(self.prefix, set())
         self.assertIn(oldest, self.backups())
         self.assertEqual(len(self.backups()), 5)
+
+    def test_runs_within_one_second_keep_their_order(self) -> None:
+        with mock.patch.object(relevo_install, "_stamp", return_value="20260101-000000"):
+            made = [self.backup_of(json.dumps({"n": n})) for n in range(7)]
+        self.assertEqual(relevo_install.list_backups(self.prefix), made)
+        legacy = self.prefix / ".relevo-backups" / "20250101-000000"
+        legacy.mkdir()
+        (legacy / "settings.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(relevo_install.list_backups(self.prefix)[0], legacy)
+        relevo_install.prune_backups(self.prefix, set(), current=made[-1].name)  # type: ignore[union-attr]
+        self.assertEqual(relevo_install.list_backups(self.prefix), made[2:])
 
     def test_prune_ignores_foreign_names_and_symlinks(self) -> None:
         base = self.prefix / ".relevo-backups"
