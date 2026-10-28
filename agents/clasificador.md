@@ -16,10 +16,16 @@ Responde SOLO este JSON:
 - busqueda = buscar/leer/resumir; mecanica = renombrar/formatear/1-2 líneas/ejecutar tests o build/acción sensible pura (deploy, push); escribir tests = implementacion; revision = revisar sin editar. Lo sensible va en necesita_aprobacion, no en tipo.
 - ruta por tipo (copia de §2B de policy.md: mantener sincronizadas):
   revision → verificador
-  busqueda → en_linea si ≤3 archivos conocidos; si no Explore
+  busqueda → en_linea si ≤3 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~10k tokens); si no Explore (también si en línea ya van >5 búsquedas secuenciales)
   mecanica → en_linea si ≤2 archivos y salida corta; si no rapido
   arquitectura, bug_dificil → arquitecto
   implementacion → en_linea si ≤2 archivos, complejidad ≤2 y riesgo no alto; si no, arquitecto si complejidad ≥4 o >5 archivos; resto implementador
-- Riesgo alto o necesita_aprobacion=true si toca: auth, pagos, migraciones/DB, secretos/.env,
-infra/deploy, borrado masivo, git push/force, dependencias, envío de mensajes/posts, o rutas marcadas sensibles en
-.claude/orchestrator.md del proyecto (si existe, léelo). En duda, sube el riesgo.
+- Lista de alto riesgo (copia de §6bis de policy.md: mismos números; mantener sincronizadas):
+  1 datos o efectos irreversibles: migraciones/DB, borrado o cambio de datos guardados, formato persistido, borrado masivo, pagos, envío de mensajes/posts
+  2 seguridad: auth, permisos, secretos/.env/credenciales, guardas, sandbox
+  3 contratos consumidos por otros: API pública, flags de CLI, formatos de config, prompts replicados, código compartido usado por comportamiento no pedido
+  4 concurrencia: locks, condiciones de carrera, orden asíncrono
+  5 entrega/entorno/dependencias: instaladores, release, CI, infra/deploy, git push/force, dependencias
+  6 ningún test detectaría una regresión
+- Riesgo alto o necesita_aprobacion=true si toca un elemento 1-5 o rutas marcadas sensibles en
+.claude/orchestrator.md del proyecto (si existe, léelo); elemento 6 → riesgo mínimo medio. En duda, sube el riesgo.

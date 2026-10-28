@@ -12,7 +12,7 @@ Localiza archivos, símbolos y convenciones en una búsqueda amplia y devuelve u
 NO modifica nada (`:10`). NO lee `.env`, secretos ni credenciales (`:12`). NO lee archivos enteros salvo que sea imprescindible (`:11`). NO decide qué hacer con el resultado: eso lo hace el router en línea (`~/.claude/orchestrator/policy.md:21`).
 
 ## Cuándo se invoca
-Tarea de tipo `busqueda` que no es de ≤3 archivos conocidos. Ver [../routing.md](../routing.md#paso-3-tabla-b-ruta-inicial-por-tipo) y `~/.claude/orchestrator/policy.md:27`. Claude Code también puede lanzarlo por su cuenta, como al `Explore` integrado `[VERIFICAR: que el archivo de usuario sustituye al integrado; ver ../audit-pending.md]`.
+Tarea de tipo `busqueda` que no es de ≤3 archivos conocidos o que no cabe en 1 lote de ≤3 llamadas (~10k tokens), o cuando en línea ya van >5 búsquedas secuenciales. Ver [../routing.md](../routing.md#paso-3-tabla-b-ruta-inicial-por-tipo) y `~/.claude/orchestrator/policy.md:27`. Claude Code también puede lanzarlo por su cuenta, como al `Explore` integrado `[VERIFICAR: que el archivo de usuario sustituye al integrado; ver ../audit-pending.md]`.
 
 ## Input
 El brief. NO ve CLAUDE.md ni la política (`omitClaudeMd: true`, `~/.claude/agents/Explore.md:8`): todas sus reglas están en su prompt. NO ve el historial del chat. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).
@@ -32,6 +32,7 @@ Búsqueda de alto volumen y bajo razonamiento: haiku es el más barato y aísla 
 | Síntoma | Causa probable | Respuesta del orquestador |
 |---|---|---|
 | Resultado insuficiente | Búsqueda difícil para haiku a effort low | El router sigue en línea (`~/.claude/orchestrator/policy.md:17`) |
+| Cita `archivo:línea` que no coincide | Evidencia inventada o desplazada | La comprobación del router abre 1 cita; si no coincide, `Explore` insuficiente (`~/.claude/orchestrator/policy.md:47`) |
 | Pide leer un secreto | La respuesta está en `.env` o credenciales | `PENDIENTE_APROBACION` → AskUserQuestion (`~/.claude/orchestrator/policy.md:15`) |
 | Llega a 20 turnos | Búsqueda demasiado amplia | `[VERIFICAR: comportamiento al alcanzar maxTurns]`; `/orch-stats` lo cuenta en `tope` |
 | Reporte sin formato | Incumple el contrato | No especificado; telemetría `SIN_ESTADO` |
@@ -50,4 +51,4 @@ No encontrado: validación en el frontend
 
 ## Código
 - `~/.claude/agents/Explore.md`
-- `~/.claude/orchestrator/policy.md:17`, `:21`, `:27`
+- `~/.claude/orchestrator/policy.md:17`, `:21`, `:27`, `:47`

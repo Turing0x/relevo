@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "implementador → router",
-  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/implementador.md:14-19. Máx 8 líneas.",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/implementador.md:15-21. Máx 8 líneas.",
   "type": "object",
   "properties": {
     "estado": {
@@ -29,6 +29,16 @@
     "pendientes": {
       "type": "string"
     },
+    "riesgo": {
+      "type": "string",
+      "pattern": "^(?:[1-6](?:,[1-6])* \\(.+\\)|ninguno)$",
+      "description": "Línea `Riesgo:` obligatoria: elementos de la lista de alto riesgo (~/.claude/orchestrator/policy.md:53-60) o \"ninguno\". 1-5 → riesgo alto; 6 → mínimo medio; ausente → mínimo medio.",
+      "examples": [
+        "ninguno",
+        "3 (cambia el formato de salida que lee orch-stats)",
+        "2,5 (toca guard-secrets y el instalador)"
+      ]
+    },
     "detalle": {
       "type": "string",
       "description": "Ruta .claude/work/<tarea>.md"
@@ -38,6 +48,7 @@
     "estado",
     "archivos",
     "verificacion",
-    "pendientes"
+    "pendientes",
+    "riesgo"
   ]
 }

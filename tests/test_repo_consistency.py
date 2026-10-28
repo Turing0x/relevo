@@ -5,10 +5,12 @@ Pure regular expressions over repository files (standard library only), so it ru
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
@@ -202,6 +204,159 @@ class InstallerTextTests(unittest.TestCase):
         marker = "<!-- relevo:sensitive-paths -->"
         self.assertIn(marker, read("scripts", "sensitive_diff.py"))
         self.assertIn(marker, read(".github", "workflows", "sensitive-paths.yml"))
+
+
+def schema(name: str) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads(read("docs", "contracts", name))
+    return data
+
+
+def output_block(agent: str) -> list[str]:
+    lines = read("agents", f"{agent}.md").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("Salida final"))
+    return lines[start + 1 :]
+
+
+def high_risk_items(text: str, item: str) -> dict[str, str]:
+    return {m.group(1): m.group(2).strip().rstrip(".").lower() for m in re.finditer(item, text)}
+
+
+class RiskLineTests(unittest.TestCase):
+    """`Riesgo: <N>[,<N>] (<motivo>) | ninguno` in implementador and rapido (policy §6bis)."""
+
+    WORKERS = ("implementador", "rapido")
+    VALID = ("ninguno", "3 (toca código compartido)", "2,5 (guard-secrets e instalador)", "6 (sin test de regresión)")
+    INVALID = (
+        "",
+        "bajo",
+        "alto",
+        "Ninguno",
+        "ninguna",
+        "3",
+        "7 (x)",
+        "0 (x)",
+        "3,(x)",
+        "3, 5 (x)",
+        "3 ()",
+        "Riesgo: 3 (x)",
+    )
+
+    def pattern(self, agent: str) -> re.Pattern[str]:
+        contract = schema(f"{agent}-output.schema.json")
+        self.assertIn("riesgo", contract["required"])
+        return re.compile(contract["properties"]["riesgo"]["pattern"])
+
+    def test_both_workers_share_the_same_risk_pattern(self) -> None:
+        self.assertEqual(self.pattern("implementador").pattern, self.pattern("rapido").pattern)
+
+    def test_valid_risk_values_match(self) -> None:
+        for agent in self.WORKERS:
+            pattern = self.pattern(agent)
+            examples = schema(f"{agent}-output.schema.json")["properties"]["riesgo"]["examples"]
+            for value in (*self.VALID, *examples):
+                with self.subTest(agent=agent, value=value):
+                    self.assertRegex(value, pattern)
+
+    def test_invalid_risk_values_do_not_match(self) -> None:
+        for agent in self.WORKERS:
+            pattern = self.pattern(agent)
+            for value in self.INVALID:
+                with self.subTest(agent=agent, value=value):
+                    self.assertIsNone(pattern.fullmatch(value))
+
+    def test_agents_print_the_risk_line_within_eight_lines(self) -> None:
+        for agent in self.WORKERS:
+            block = output_block(agent)
+            with self.subTest(agent=agent):
+                self.assertIn("Riesgo: <N>[,<N>] (<motivo>) | ninguno", block)
+                self.assertLessEqual(len(block), 8)
+                self.assertIn(
+                    "código compartido usado por comportamiento no pedido (= 3)", read("agents", f"{agent}.md")
+                )
+
+    def test_policy_feeds_the_risk_line_into_final_risk(self) -> None:
+        policy = read("orchestrator", "policy.md")
+        self.assertRegex(policy, r"riesgo final = max\([^)]*línea `Riesgo:` del worker")
+        self.assertIn("Sigue solo tu brief, §4, §6 y §6bis.", policy)
+
+
+class PolicySyncTests(unittest.TestCase):
+    """Copies the clasificador keeps of policy.md (it runs with omitClaudeMd)."""
+
+    def test_high_risk_list_has_the_same_numbers_and_text(self) -> None:
+        policy = read("orchestrator", "policy.md")
+        section = policy.split("## 6bis.", 1)[1].split("\n## ", 1)[0]
+        in_policy = high_risk_items(section, r"(?m)^([1-9])\. (.+)$")
+        in_clasificador = high_risk_items(read("agents", "clasificador.md"), r"(?m)^  ([1-9]) (.+)$")
+        self.assertEqual(sorted(in_policy), [str(n) for n in range(1, 7)])
+        self.assertEqual(in_policy, in_clasificador)
+
+    def test_busqueda_row_is_synchronised(self) -> None:
+        row = re.search(r"(?m)^\| busqueda \| (.+?) \| (.+?) \|$", read("orchestrator", "policy.md"))
+        assert row is not None
+        line = next(x for x in read("agents", "clasificador.md").splitlines() if x.strip().startswith("busqueda →"))
+        self.assertIn(f"en_linea si {row.group(1)};", line)
+        for text in ("1 lote de ≤3 llamadas (~10k tokens)", ">5 búsquedas secuenciales"):
+            with self.subTest(text=text):
+                self.assertIn(text, row.group(0))
+                self.assertIn(text, line)
+
+
+class BriefAndVerifierContractTests(unittest.TestCase):
+    def test_allowed_surface_rejects_broad_or_absolute_paths(self) -> None:
+        items = schema("brief.schema.json")["properties"]["superficie_permitida"]["items"]
+        pattern = re.compile(str(items["pattern"]))
+        banned = set(items["not"]["enum"])
+        for value in ("src/validators/user.js", "test/auth/*.test.js", "docs/**/*.md", ".github/workflows/ci.yml"):
+            with self.subTest(value=value):
+                self.assertRegex(value, pattern)
+                self.assertNotIn(value, banned)
+        for value in ("/etc/passwd", "~/x", "C:/x", "\\x", "../x", "a/../b", "a/.."):
+            with self.subTest(value=value):
+                self.assertIsNone(pattern.fullmatch(value))
+        self.assertTrue({".", "./", "**"} <= banned)
+
+    def test_brief_carries_base_commit_and_recheck_findings(self) -> None:
+        brief = schema("brief.schema.json")
+        self.assertNotIn("archivos_permitidos", brief["properties"])
+        for field in ("base_commit", "modo", "recheck_findings"):
+            with self.subTest(field=field):
+                self.assertIn(field, brief["properties"])
+        self.assertRegex("37a2984", brief["properties"]["base_commit"]["pattern"])
+        self.assertIn("recheck_findings", json.dumps(brief["allOf"]))
+
+    def test_verifier_findings_are_blocking_or_warning(self) -> None:
+        props = schema("verificador-output.schema.json")["properties"]
+        pattern = re.compile(str(props["hallazgos"]["items"]["pattern"]))
+        for value in ("ninguno", "[bloqueante] a.py:3 — x — y", "[advertencia] a.py:3 — x — y"):
+            with self.subTest(value=value):
+                self.assertRegex(value, pattern)
+        for value in ("[alta] a.py:3 — x — y", "[estilo] a.py:1 — x — y", ""):
+            with self.subTest(value=value):
+                self.assertIsNone(pattern.fullmatch(value))
+        self.assertIn("recheck", props)
+
+    @unittest.skipUnless(importlib.util.find_spec("jsonschema"), "jsonschema not installed")
+    def test_sample_reports_validate_against_the_schemas(self) -> None:
+        import jsonschema
+
+        ok = {"estado": "OK", "archivos": ["a.py"], "verificacion": "make test → OK", "pendientes": "ninguno"}
+        validate = jsonschema.validate
+        validate({**ok, "riesgo": "3 (contrato de salida)"}, schema("implementador-output.schema.json"))
+        validate({"estado": "OK", "riesgo": "ninguno"}, schema("rapido-output.schema.json"))
+        for bad in (ok, {**ok, "riesgo": "bajo"}):
+            with self.subTest(report=bad), self.assertRaises(jsonschema.ValidationError):
+                validate(bad, schema("implementador-output.schema.json"))
+        brief = schema("brief.schema.json")
+        validate({"objetivo": "x", "superficie_permitida": ["src/a.py"], "modo": "normal"}, brief)
+        for bad_brief in (
+            {"objetivo": "x", "superficie_permitida": ["."]},
+            {"objetivo": "x", "superficie_permitida": ["/abs/a.py"]},
+            {"objetivo": "x", "modo": "recheck", "base_commit": "37a2984"},
+            {"objetivo": "x", "modo": "recheck", "base_commit": "37a2984", "recheck_findings": []},
+        ):
+            with self.subTest(brief=bad_brief), self.assertRaises(jsonschema.ValidationError):
+                validate(bad_brief, brief)
 
 
 if __name__ == "__main__":

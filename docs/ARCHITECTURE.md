@@ -72,10 +72,10 @@ Tarea ilustrativa: "añade validación de email al endpoint de registro" en un p
 | 1 | Router | modelo de la sesión | Chat completo, `~/.claude/CLAUDE.md`, la política, CLAUDE.md del proyecto y `.claude/orchestrator.md` | — | `~/.claude/CLAUDE.md:6` |
 | 2 | Router clasifica en línea (sesión opus) o lanza `clasificador` | opus en línea / haiku | `clasificador`: solo la petición y hasta 3 archivos; sin CLAUDE.md (`omitClaudeMd: true`) | JSON con `tipo`, `riesgo`, `complejidad`, `ruta` | `~/.claude/orchestrator/policy.md:10-11`, `~/.claude/agents/clasificador.md:8-15` |
 | 3 | Router aplica tabla B: `implementacion`, 3 archivos → `implementador` | — | — | — | `~/.claude/orchestrator/policy.md:30` |
-| 4 | `implementador` | sonnet, effort high | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes | `~/.claude/orchestrator/policy.md:39`, `~/.claude/agents/implementador.md` |
+| 4 | `implementador` | sonnet, effort high | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes, `Riesgo:` | `~/.claude/orchestrator/policy.md:39`, `~/.claude/agents/implementador.md` |
 | 5 | Router: gate determinista con el comando de test/lint/build del proyecto | — | — | Verde o rojo | `~/.claude/orchestrator/policy.md:44` |
-| 6 | `verificador` (riesgo medio y >1 archivo) | opus, effort high | Petición original literal, criterios y archivos; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos | `~/.claude/orchestrator/policy.md:45-46`, `~/.claude/agents/verificador.md` |
-| 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:53` |
+| 6 | `verificador` (riesgo medio y >1 archivo) | opus, effort high | Petición original literal, criterios, archivos, `base_commit` y `modo`; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos | `~/.claude/orchestrator/policy.md:45-46`, `~/.claude/agents/verificador.md` |
+| 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:63` |
 | 8 | Hook `orch-telemetry` en cada fin de worker | — | Transcript del worker | Una línea en `log.jsonl` | `~/.claude/hooks/orch-telemetry:54-73` |
 
 Si el paso 6 devuelve `RECHAZADO`, ver [routing.md](routing.md#paso-2-tabla-a-respuestas-de-worker-y-acciones-sensibles). Ejemplos completos en [examples/](examples/implementacion-con-rechazo.md).
@@ -97,8 +97,8 @@ La columna "Impuesto por" distingue lo que Claude Code garantiza de lo que depen
 | Nunca se lanza `verificador` sobre un gate determinista en rojo. | Solo política | `~/.claude/orchestrator/policy.md:44` |
 | El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:46` |
 | Nunca más de 1 llamada a `arquitecto` ni más de 2 ciclos por tarea sin aprobación. | Solo política (no hay contador) | `~/.claude/orchestrator/policy.md:33-34` |
-| Las acciones sensibles siempre pasan por AskUserQuestion. | Solo política, salvo lo cubierto por permisos y hooks | `~/.claude/orchestrator/policy.md:15`, `:49-50` |
-| Una config de proyecto nunca relaja la política. | Solo política | `~/.claude/orchestrator/policy.md:56` |
+| Las acciones sensibles siempre pasan por AskUserQuestion. | Solo política, salvo lo cubierto por permisos y hooks | `~/.claude/orchestrator/policy.md:15`, `:50-51` |
+| Una config de proyecto nunca relaja la política. | Solo política | `~/.claude/orchestrator/policy.md:66` |
 
 ## Estado y memoria entre pasos
 

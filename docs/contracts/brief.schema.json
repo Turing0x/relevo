@@ -1,18 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "brief (router → worker)",
-  "description": "[VERIFICAR] formato no definido explícitamente en el código: la política lista los campos (~/.claude/orchestrator/policy.md:39, :46) pero el brief viaja como texto libre en el prompt del subagente.",
+  "description": "[VERIFICAR] el brief viaja como texto libre en el prompt del subagente; la política lista los campos (~/.claude/orchestrator/policy.md:39, :46). La superficie va en una sección `## Superficie permitida`.",
   "type": "object",
   "properties": {
     "objetivo": {
       "type": "string"
     },
-    "archivos_permitidos": {
+    "superficie_permitida": {
       "type": "array",
+      "minItems": 1,
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?![/~\\\\])(?![A-Za-z]:)(?!(?:.*/)?\\.\\.(?:/|$)).+$",
+        "not": {
+          "enum": [
+            ".",
+            "./",
+            "*",
+            "**",
+            "**/*"
+          ]
+        }
       },
-      "description": "Fuera de esta lista, el worker devuelve AMPLIAR (~/.claude/agents/implementador.md:10)."
+      "description": "Sección `## Superficie permitida`: rutas o globs estrechos relativos a la raíz git; nunca `.`, comodín global ni rutas absolutas. Fuera de ella, el worker devuelve AMPLIAR (~/.claude/agents/implementador.md:10). Si el router no puede derivarla, AskUserQuestion con candidatos (policy.md:39).",
+      "examples": [
+        [
+          "src/validators/user.js",
+          "test/auth/*.test.js"
+        ]
+      ]
     },
     "criterios_aceptacion": {
       "type": "array",
@@ -37,6 +55,25 @@
     "hallazgos_previos": {
       "type": "string",
       "description": "En re-brief y replan (~/.claude/orchestrator/policy.md:19-20)."
+    },
+    "base_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Commit previo al cambio. Obligatorio para verificador (policy.md:46): bloqueante = no reproducible en base."
+    },
+    "modo": {
+      "enum": [
+        "normal",
+        "recheck"
+      ],
+      "description": "Solo verificador. recheck tras RECHAZADO con Causa: implementación (policy.md:34)."
+    },
+    "recheck_findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Hallazgos bloqueantes previos, literales. Obligatorio si modo = recheck."
     }
   },
   "required": [
@@ -47,5 +84,30 @@
       "razonamiento_implementador"
     ]
   },
-  "$comment": "Nunca incluye historial de chat (policy.md:39) ni, para verificador, el razonamiento del implementador (policy.md:46)."
+  "$comment": "Nunca incluye historial de chat (policy.md:39) ni, para verificador, el razonamiento del implementador (policy.md:46).",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "modo": {
+            "const": "recheck"
+          }
+        },
+        "required": [
+          "modo"
+        ]
+      },
+      "then": {
+        "required": [
+          "base_commit",
+          "recheck_findings"
+        ],
+        "properties": {
+          "recheck_findings": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
 }

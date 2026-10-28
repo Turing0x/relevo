@@ -12,7 +12,20 @@ Toda esta lógica es texto de la política que interpreta el modelo de la sesió
 | La sesión principal no es opus | `clasificador` (haiku) | `~/.claude/orchestrator/policy.md:10` |
 | JSON del `clasificador` ausente o incoherente | El router, en línea | `~/.claude/orchestrator/policy.md:10` |
 
-El router calcula el riesgo final como el máximo entre el `clasificador`, su propio juicio y los disparadores de acción sensible. La tabla B se aplica con ese riesgo final (`~/.claude/orchestrator/policy.md:11`).
+El router calcula el riesgo final como el máximo entre el `clasificador`, su propio juicio, los disparadores de acción sensible, los elementos de la lista de alto riesgo y la línea `Riesgo:` del worker o del trabajo en línea. La tabla B se aplica con ese riesgo final; si la línea `Riesgo:` lo sube tras el cambio, se reaplican la tabla B y la verificación (`~/.claude/orchestrator/policy.md:11`).
+
+### Lista de alto riesgo y línea de riesgo
+
+| Elemento | Qué cubre | Riesgo | Fuente |
+|---|---|---|---|
+| 1 | Datos o efectos irreversibles: migraciones/DB, borrado o cambio de datos guardados, formato persistido, borrado masivo, pagos, envío de mensajes/posts | alto | `~/.claude/orchestrator/policy.md:54` |
+| 2 | Seguridad: auth, permisos, secretos/.env/credenciales, guardas, sandbox | alto | `~/.claude/orchestrator/policy.md:55` |
+| 3 | Contratos consumidos por otros: API pública, flags de CLI, formatos de config, prompts replicados, código compartido usado por comportamiento no pedido | alto | `~/.claude/orchestrator/policy.md:56` |
+| 4 | Concurrencia: locks, condiciones de carrera, orden asíncrono | alto | `~/.claude/orchestrator/policy.md:57` |
+| 5 | Entrega/entorno/dependencias: instaladores, release, CI, infra/deploy, git push/force, dependencias | alto | `~/.claude/orchestrator/policy.md:58` |
+| 6 | Ningún test detectaría una regresión | mínimo medio | `~/.claude/orchestrator/policy.md:59` |
+
+`implementador`, `rapido` y el trabajo en línea con cambios cierran con `Riesgo: <N>[,<N>] (<motivo>) | ninguno`. Antes de escribir `ninguno` se comprueba si el diff toca código compartido que usa un comportamiento no pedido; si es así, cuenta como elemento 3. Sin línea, el riesgo es medio como mínimo (`~/.claude/orchestrator/policy.md:60`). El `clasificador` tiene la misma lista con los mismos números (`~/.claude/agents/clasificador.md:23-29`); `tests/test_repo_consistency.py` comprueba que coinciden.
 
 ## Paso 2: tabla A (respuestas de worker y acciones sensibles)
 
@@ -20,8 +33,8 @@ La tabla A tiene prioridad sobre la tabla B (`~/.claude/orchestrator/policy.md:1
 
 | Condición | Acción | Agente | Modelo | Fuente |
 |---|---|---|---|---|
-| Acción sensible a punto de ejecutarse, o un worker devuelve `PENDIENTE_APROBACION` | Parar y preguntar con AskUserQuestion: acción exacta, alcance, rollback | router | sesión | `~/.claude/orchestrator/policy.md:15` |
-| Worker devuelve `AMPLIAR` | Re-brief si sigue en alcance; si no, preguntar al usuario | mismo worker | — | `~/.claude/orchestrator/policy.md:16` |
+| Acción sensible a punto de ejecutarse, o un worker devuelve `PENDIENTE_APROBACION` | Parar y preguntar con AskUserQuestion: acción exacta, alcance, rollback; las opciones del worker se pasan literales, sin resumir. Sin UI interactiva: mostrar el texto completo y parar | router | sesión | `~/.claude/orchestrator/policy.md:15` |
+| Worker devuelve `AMPLIAR` | Re-brief si sigue en alcance; si no, preguntar al usuario con las opciones literales | mismo worker | — | `~/.claude/orchestrator/policy.md:16` |
 | `rapido` devuelve `ESCALAR` | Pasar a `implementador` | `implementador` | sonnet | `~/.claude/orchestrator/policy.md:17` |
 | Resultado de `Explore` insuficiente | Seguir en línea | router | sesión | `~/.claude/orchestrator/policy.md:17` |
 | Trabajo en línea que excede su fila de la tabla B | Reclasificar con la tabla B | — | — | `~/.claude/orchestrator/policy.md:17` |
@@ -32,7 +45,7 @@ La tabla A tiene prioridad sobre la tabla B (`~/.claude/orchestrator/policy.md:1
 | `OK` de `Explore`, o de `rapido` sin cambios de código | Seguir en línea con su resultado | router | sesión | `~/.claude/orchestrator/policy.md:21` |
 | `OK` de `arquitecto` | Un `implementador` por tramo del plan | `implementador` | sonnet | `~/.claude/orchestrator/policy.md:21` |
 | Código terminado (worker o en línea) | Verificación en dos gates | ver abajo | — | `~/.claude/orchestrator/policy.md:21` |
-| Verificación superada | Consolidación final | router | sesión | `~/.claude/orchestrator/policy.md:21`, `:53` |
+| Verificación superada | Consolidación final | router | sesión | `~/.claude/orchestrator/policy.md:21`, `:63` |
 
 ## Paso 3: tabla B (ruta inicial por tipo)
 
@@ -41,8 +54,8 @@ Hay una copia en `~/.claude/agents/clasificador.md:17-22`. Las dos deben coincid
 | Tipo | Condición | Agente | Modelo | Fuente |
 |---|---|---|---|---|
 | `revision` | siempre | `verificador` | opus | `~/.claude/orchestrator/policy.md:26` |
-| `busqueda` | ≤3 archivos conocidos | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:27` |
-| `busqueda` | resto | `Explore` | haiku | `~/.claude/orchestrator/policy.md:27` |
+| `busqueda` | ≤3 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~10k tokens) | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:27` |
+| `busqueda` | resto, o en línea ya van >5 búsquedas secuenciales | `Explore` | haiku | `~/.claude/orchestrator/policy.md:27` |
 | `mecanica` (incluye ejecutar tests/build y acciones sensibles puras como deploy o push) | ≤2 archivos y salida corta | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:28` |
 | `mecanica` | resto | `rapido` | haiku | `~/.claude/orchestrator/policy.md:28` |
 | `arquitectura`, `bug_dificil` | siempre | `arquitecto` → plan → `implementador` por tramo (en paralelo si los archivos son disjuntos) | opus → sonnet | `~/.claude/orchestrator/policy.md:29` |
@@ -60,9 +73,12 @@ Lo sensible no es un tipo: el `clasificador` lo marca en `necesita_aprobacion` y
 | Gate determinista en rojo | Vuelve al mismo ejecutor; cuenta como ciclo; nunca `verificador` sobre rojo | mismo ejecutor | — | `~/.claude/orchestrator/policy.md:44` |
 | Gate verde y (riesgo medio o alto, o más de 1 archivo) | Verificación independiente | `verificador` | opus | `~/.claude/orchestrator/policy.md:45` |
 | Gate verde, riesgo bajo y 1 archivo | Sin `verificador` | — | — | `~/.claude/orchestrator/policy.md:45` (condición inversa) |
-| La config de proyecto marca "verificador obligatorio en" esas rutas | `verificador` aunque no se cumpla lo anterior | `verificador` | opus | `~/.claude/orchestrator/project-template.md`, `~/.claude/orchestrator/policy.md:56` |
+| 2º ciclo tras `RECHAZADO` con `Causa: implementación` o dudosa | `verificador` en `modo: recheck` con `recheck_findings`: revisa solo esos; un hallazgo nuevo es advertencia y no consume ciclo | `verificador` | opus | `~/.claude/orchestrator/policy.md:34` |
+| 2º ciclo tras replan | Revisión completa | `verificador` | opus | `~/.claude/orchestrator/policy.md:34` |
+| Antes de la consolidación final | Comprobación del router: re-ejecuta 1 comando reportado y abre 1 cita `archivo:línea` de `Explore`. Comando distinto → gate determinista en rojo; cita distinta → `Explore` insuficiente | router | sesión | `~/.claude/orchestrator/policy.md:47` |
+| La config de proyecto marca "verificador obligatorio en" esas rutas | `verificador` aunque no se cumpla lo anterior | `verificador` | opus | `~/.claude/orchestrator/project-template.md`, `~/.claude/orchestrator/policy.md:66` |
 
-El `verificador` se lanza con contexto limpio aunque quien implementó fuera opus (`~/.claude/orchestrator/policy.md:45`). Ver [decisions/0004-verificacion-dos-gates.md](decisions/0004-verificacion-dos-gates.md).
+El `verificador` se lanza con contexto limpio aunque quien implementó fuera opus (`~/.claude/orchestrator/policy.md:45`). Recibe `base_commit`: solo es bloqueante un defecto causado por el cambio que no se reproduce en la base, y solo un bloqueante produce `RECHAZADO` (`~/.claude/orchestrator/policy.md:46`, `~/.claude/agents/verificador.md:13-15`). Ver [decisions/0009-riesgo-declarado-y-recheck.md](decisions/0009-riesgo-declarado-y-recheck.md). Ver [decisions/0004-verificacion-dos-gates.md](decisions/0004-verificacion-dos-gates.md).
 
 ## Escalado entre modelos
 
@@ -82,9 +98,9 @@ Fable no está en la escalera; opus es el techo ([decisions/0002-modelo-por-rol.
 | Límite | Valor | Al agotarse | Fuente |
 |---|---|---|---|
 | Llamadas a `arquitecto` por tarea (incluido replan) | 1 | AskUserQuestion; sin permiso, parar y reportar | `~/.claude/orchestrator/policy.md:19`, `:33` |
-| Ciclos implementar→verificar | 2 (todo RECHAZADO cuenta; el replan no reinicia) | Parar y reportar | `~/.claude/orchestrator/policy.md:34` |
+| Ciclos implementar→verificar | 2 (todo RECHAZADO cuenta; el replan no reinicia; el 2º tras `Causa: implementación` es recheck y un hallazgo nuevo no consume ciclo) | Parar y reportar; advertencias abiertas a la consolidación final | `~/.claude/orchestrator/policy.md:34` |
 | Turnos por llamada a worker | `maxTurns` del agente | El worker se detiene `[VERIFICAR: comportamiento exacto al alcanzar maxTurns; ver audit-pending.md]` | `~/.claude/orchestrator/policy.md:35` |
-| Paralelismo | Solo con archivos disjuntos | — | `~/.claude/orchestrator/policy.md:35` |
+| Paralelismo | Solo con archivos disjuntos y unidades de comportamiento independientes (~100+ líneas cada una); código, tests y docs de una unidad en el mismo worker | — | `~/.claude/orchestrator/policy.md:35` |
 
 Una config de proyecto solo puede bajar estos valores (`~/.claude/orchestrator/policy.md:36`).
 
