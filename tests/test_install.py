@@ -250,6 +250,29 @@ class IdempotencyAndSafetyTests(InstallerCase):
         self.assertEqual(commands.count(guard), 1)
         self.assertEqual(commands.count(str(self.prefix / "hooks" / "block-force-push")), 1)
 
+    def test_orch_resume_is_registered_for_compact_and_resume_and_removed_on_uninstall(self) -> None:
+        self.write_settings({"hooks": {"SessionStart": [{"matcher": "startup", "hooks": []}]}})
+        self.assertEqual(self.install().returncode, 0)
+        resume = str(self.prefix / "hooks" / "orch-resume")
+        groups = self.settings()["hooks"]["SessionStart"]
+        registered = {g.get("matcher"): [h["command"] for h in g["hooks"]] for g in groups}
+        self.assertEqual(registered, {"startup": [], "compact": [resume], "resume": [resume]})
+        self.assertTrue(all(h["timeout"] == 5 for g in groups for h in g["hooks"]))
+        manifest = json.loads((self.prefix / "orchestrator" / ".relevo-manifest.json").read_text(encoding="utf-8"))
+        self.assertIn("hooks/orch-resume", manifest["files"])
+        recorded = [(h["matcher"], h["command"]) for h in manifest["settings_added"]["hooks"] if h["command"] == resume]
+        self.assertEqual(sorted(recorded), [("compact", resume), ("resume", resume)])
+        self.assertIn("nothing to do", self.install().stdout)
+        self.assertEqual(self.uninstall().returncode, 0)
+        self.assertEqual(self.settings(), {"hooks": {"SessionStart": [{"matcher": "startup", "hooks": []}]}})
+
+    def test_user_registered_orch_resume_is_left_alone(self) -> None:
+        resume = str(self.prefix / "hooks" / "orch-resume")
+        mine = {"hooks": {"SessionStart": [{"matcher": "compact", "hooks": [{"type": "command", "command": resume}]}]}}
+        self.write_settings(mine)
+        self.assertEqual(self.install().returncode, 0)
+        self.assertEqual(self.settings()["hooks"]["SessionStart"], mine["hooks"]["SessionStart"])
+
     def test_invalid_settings_abort_without_changes(self) -> None:
         for content in ("{ not json", "[]", '{"permissions": []}', '{"hooks": {"PreToolUse": "x"}}', '{"env": 3}'):
             with self.subTest(content=content):
@@ -464,8 +487,8 @@ class RegressionTests(InstallerCase):
         self.assertEqual(self.install().returncode, 0)
         settings = self.settings()
         commands = [h["command"] for groups in settings["hooks"].values() for g in groups for h in g["hooks"]]
-        self.assertEqual(len(commands), 3)
-        for hook in ("block-force-push", "guard-secrets", "orch-telemetry"):
+        self.assertEqual(len(commands), 5)  # orch-resume is registered twice (compact, resume)
+        for hook in ("block-force-push", "guard-secrets", "orch-telemetry", "orch-resume"):
             self.assertIn(shlex.quote(str(self.prefix / "hooks" / hook)), commands)
         for command in commands:
             with self.subTest(command=command):
@@ -493,7 +516,7 @@ class RegressionTests(InstallerCase):
         merged, added, _warn = relevo_install.merge_settings(
             {"hooks": {"PreToolUse": [{"matcher": "Mine", "hooks": []}]}}, copy.deepcopy(TEMPLATE)
         )
-        cleaned = relevo_install.unmerge_settings(merged, added, ["hooks.SubagentStop"])
+        cleaned = relevo_install.unmerge_settings(merged, added, ["hooks.SubagentStop", "hooks.SessionStart"])
         self.assertEqual(cleaned["hooks"], {"PreToolUse": [{"matcher": "Mine", "hooks": []}]})
 
     def test_claude_md_without_final_newline_round_trips(self) -> None:
@@ -506,6 +529,161 @@ class RegressionTests(InstallerCase):
                 self.assertIn(b"relevo:begin", claude_md.read_bytes())
                 self.assertEqual(self.uninstall().returncode, 0)
                 self.assertEqual(claude_md.read_bytes(), original)
+
+
+class StrictSettingsTests(InstallerCase):
+    """settings.json is rewritten as plain JSON: comments and duplicate keys abort before any write."""
+
+    REJECTED: ClassVar[dict[str, str]] = {
+        "line comment": '{\n  // mine\n  "model": "opus"\n}\n',
+        "block comment": '{"model": "opus" /* mine */}\n',
+        "duplicate top-level key": '{"model": "opus", "model": "sonnet"}\n',
+        "duplicate nested key": '{"env": {"A": "1", "A": "2"}}\n',
+    }
+
+    def test_install_refuses_comments_and_duplicate_keys_without_writing(self) -> None:
+        for case, content in self.REJECTED.items():
+            with self.subTest(case=case):
+                self.prefix.mkdir(parents=True, exist_ok=True)
+                (self.prefix / "settings.json").write_text(content, encoding="utf-8")
+                before = snapshot(self.prefix)
+                result = self.install()
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("nothing was changed", result.stderr)
+                self.assertIn("comment" if "comment" in case else "repeats the key", result.stderr)
+                self.assertEqual(snapshot(self.prefix), before)
+
+    def test_slashes_inside_strings_are_not_comments(self) -> None:
+        self.write_settings({"apiKeyHelper": "https://example.test/*x*/", "env": {"P": 'a//b "q" //'}})
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.settings()["apiKeyHelper"], "https://example.test/*x*/")
+
+    def test_uninstall_refuses_a_settings_file_that_gained_a_comment(self) -> None:
+        self.assertEqual(self.install().returncode, 0)
+        path = self.prefix / "settings.json"
+        path.write_text("// added later\n" + path.read_text(encoding="utf-8"), encoding="utf-8")
+        before = snapshot(self.prefix)
+        result = self.uninstall()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("comment on line 1", result.stderr)
+        self.assertNotIn("--no-settings", result.stderr)
+        self.assertEqual(snapshot(self.prefix), before)
+
+    def test_find_comment_reports_the_line(self) -> None:
+        self.assertEqual(relevo_install.find_comment('{"a": "//"}'), 0)
+        self.assertEqual(relevo_install.find_comment('{"a": "\\\\"} // x'), 1)
+        self.assertEqual(relevo_install.find_comment('{\n"a": 1\n/* x */}'), 3)
+
+
+class BackupRetentionTests(InstallerCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.prefix.mkdir()
+        self.counter = 0
+
+    def backup_of(self, content: str, pin: bool = False) -> Path | None:
+        """Write settings.json with ``content`` and back it up as the installer would."""
+        (self.prefix / "settings.json").write_text(content, encoding="utf-8")
+        self.counter += 1
+        root = self.prefix / ".relevo-backups" / f"20260101-0000{self.counter:02d}"
+        result: Path | None = relevo_install.make_backup(self.prefix, ["settings.json"], root, pin=pin)
+        return result
+
+    def test_identical_content_reuses_the_existing_backup(self) -> None:
+        first = self.backup_of("{}")
+        again = self.backup_of("{}")
+        self.assertEqual(again, first)
+        other = self.backup_of('{"a": 1}')
+        self.assertNotEqual(other, first)
+        self.assertEqual(len(self.backups()), 2)
+        meta = json.loads((other / ".relevo-backup.json").read_text(encoding="utf-8"))  # type: ignore[operator]
+        self.assertEqual(set(meta["files"]), {"settings.json"})
+
+    def test_manifest_install_time_does_not_defeat_deduplication(self) -> None:
+        manifest = self.prefix / "orchestrator" / ".relevo-manifest.json"
+        manifest.parent.mkdir()
+        roots = []
+        for stamp in ("2026-01-01T00:00:00", "2026-02-02T00:00:00"):
+            manifest.write_text(json.dumps({"version": "x", "installed_at": stamp}), encoding="utf-8")
+            self.counter += 1
+            root = self.prefix / ".relevo-backups" / f"20260101-0000{self.counter:02d}"
+            roots.append(relevo_install.make_backup(self.prefix, [relevo_install.MANIFEST_REL], root))
+        self.assertEqual(roots[0], roots[1])
+
+    def test_legacy_backup_without_metadata_is_matched_by_content(self) -> None:
+        legacy = self.prefix / ".relevo-backups" / "20250101-000000"
+        legacy.mkdir(parents=True)
+        (legacy / "settings.json").write_text('{"old": true}', encoding="utf-8")
+        self.assertEqual(self.backup_of('{"old": true}'), legacy)
+
+    def test_keeps_the_last_five_plus_pinned_and_protected(self) -> None:
+        pinned = self.backup_of('{"n": "pinned"}', pin=True)
+        protected = self.backup_of('{"n": "protected"}')
+        assert pinned is not None and protected is not None
+        made = [self.backup_of(json.dumps({"n": n})) for n in range(7)]
+        removed = relevo_install.prune_backups(self.prefix, {protected.name})
+        self.assertEqual(removed, made[:2])
+        self.assertEqual(self.backups(), sorted([pinned, protected, *made[2:]]))
+
+    def test_reused_backup_counts_as_recent(self) -> None:
+        oldest = self.backup_of('{"n": "oldest"}')
+        for n in range(5):
+            self.backup_of(json.dumps({"n": n}))
+        with mock.patch.object(relevo_install, "_stamp", return_value="20991231-235959"):
+            self.assertEqual(self.backup_of('{"n": "oldest"}'), oldest)
+        relevo_install.prune_backups(self.prefix, set())
+        self.assertIn(oldest, self.backups())
+        self.assertEqual(len(self.backups()), 5)
+
+    def test_prune_ignores_foreign_names_and_symlinks(self) -> None:
+        base = self.prefix / ".relevo-backups"
+        (base / "notes").mkdir(parents=True)
+        target = self.tmp / "elsewhere"
+        target.mkdir()
+        (base / "20000101-000000").symlink_to(target)
+        for n in range(7):
+            self.backup_of(json.dumps({"n": n}))
+        relevo_install.prune_backups(self.prefix, set())
+        self.assertTrue((base / "notes").is_dir())
+        self.assertTrue(target.is_dir())
+        self.assertEqual(len(relevo_install.list_backups(self.prefix)), 5)
+
+    def test_install_never_prunes_the_backup_holding_a_forced_original(self) -> None:
+        self.prefix.rmdir()
+        (self.prefix / "agents").mkdir(parents=True)
+        (self.prefix / "agents" / "rapido.md").write_text("my own agent\n", encoding="utf-8")
+        self.assertEqual(self.install("--force").returncode, 0)
+        original = self.backups()[0]
+        for n in range(7):
+            data = self.settings()
+            data["env"]["N"] = str(n)
+            (self.prefix / "settings.json").write_text(json.dumps(data), encoding="utf-8")
+            (self.prefix / "CLAUDE.md").write_text(f"# {n}\n", encoding="utf-8")
+            result = self.install()
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(original, self.backups())
+        self.assertLessEqual(len(self.backups()), 6)
+        self.assertEqual(self.uninstall().returncode, 0)
+        self.assertEqual((self.prefix / "agents" / "rapido.md").read_text(encoding="utf-8"), "my own agent\n")
+
+    def test_pin_backup_flag_and_backups_command(self) -> None:
+        (self.prefix / "settings.json").write_text("{}", encoding="utf-8")
+        result = self.install("--pin-backup")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("(pinned)", result.stdout)
+        [root] = self.backups()
+        self.assertTrue((root / ".pinned").exists())
+        listing = self.run_cli("backups", "--prefix", str(self.prefix))
+        self.assertIn(f"{root.name}  ", listing.stdout)
+        self.assertIn("[pinned]", listing.stdout)
+        self.assertEqual(self.run_cli("backups", "--prefix", str(self.prefix), "--unpin", root.name).returncode, 0)
+        self.assertFalse((root / ".pinned").exists())
+        self.assertEqual(self.run_cli("backups", "--prefix", str(self.prefix), "--pin", root.name).returncode, 0)
+        self.assertTrue((root / ".pinned").exists())
+        missing = self.run_cli("backups", "--prefix", str(self.prefix), "--pin", "19990101-000000")
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("no backup named", missing.stderr)
 
 
 class MergeUnitTests(unittest.TestCase):
@@ -526,7 +704,7 @@ class MergeUnitTests(unittest.TestCase):
         self.assertEqual(merged, TEMPLATE)
         self.assertEqual(warnings, [])
         self.assertEqual(added["env"], TEMPLATE["env"])
-        self.assertEqual(len(added["hooks"]), 3)
+        self.assertEqual(len(added["hooks"]), 5)
 
     def test_merge_is_idempotent(self) -> None:
         users = self.sample_users()

@@ -6,7 +6,7 @@ ADR del orquestador. Términos en [../GLOSSARY.md](../GLOSSARY.md). Rutas absolu
 Sin límites, los ciclos implementar→verificar y los replan pueden no terminar.
 
 ## Decisión
-Máximo 1 llamada a `arquitecto` por tarea, incluido el replan, y 2 ciclos. Todo RECHAZADO cuenta y el replan no reinicia el contador. Agotado el presupuesto: parar y reportar o preguntar (`~/.claude/orchestrator/policy.md:33-34`, `:19`). Viene de la versión anterior (`~/.claude/backups/orch-review-1792228240/orchestrator/policy.md`, líneas 22-23).
+Máximo 1 llamada a `arquitecto` por tarea, incluido el replan, y 2 ciclos. Todo RECHAZADO cuenta y el replan no reinicia el contador. Agotado el presupuesto: parar y reportar o preguntar (`~/.claude/orchestrator/policy.md:35-36`, `:19`). Viene de la versión anterior (`~/.claude/backups/orch-review-1792228240/orchestrator/policy.md`, líneas 22-23).
 
 ## Por qué
 `[VERIFICAR: no hay registro del motivo de los valores 1 y 2]`.

@@ -55,6 +55,7 @@ Examples: `fix(hooks): block git push with a leading -C option`, `docs(agents): 
   - `block-force-push` blocks by exiting with code **2**.
   - `guard-secrets` prints a JSON `permissionDecision: "ask"` and exits **0**. It asks; it does not block.
   - `orch-telemetry` always exits **0** and never blocks.
+  - `orch-resume` prints the open task logbook to stdout, always exits **0** and never blocks.
 - **Fail-open or fail-closed:** the hooks currently let the call through when they hit an internal error. Do not change that behavior without an ADR (see below).
 - **Prose:** code, comments and community files are in English. The technical docs under `docs/` are currently in Spanish; match the language of the file you edit.
 - Do not add runtime dependencies. If you think you need one, open an issue first.
@@ -67,7 +68,7 @@ Examples: `fix(hooks): block git push with a leading -C option`, `docs(agents): 
 | `make test` | The `unittest` suite (standard library only) |
 | `make lint` | Hidden-Unicode check, syntax compilation of every Python file and hook, `ruff check`, `ruff format --check` on new code, `shellcheck` |
 | `make typecheck` | `mypy` on scripts (strict), tests, `stats.py` and each hook |
-| `make docs-check` | Broken links and anchors, JSON Schema validity, and agent-to-doc consistency |
+| `make docs-check` | Table B in sync with `orchestrator/routing.json`, broken links and anchors, JSON Schema validity, and agent-to-doc consistency |
 | `make lint-workflows` | `actionlint` and `zizmor` on `.github/workflows` |
 
 If a tool is not installed, the local run prints `SKIP: <tool> not installed (run make install-dev)` and continues with exit code 0. That is expected on a bare machine: the tests and the docs checks still run. In CI (`CI` set) a missing tool is an error, so the full set of checks always runs there. Before opening a PR, make sure `make test` and `make docs-check` pass, and run the rest if you installed the dev tools.
@@ -83,7 +84,7 @@ When the change is agreed, update all of these:
 - `agents/<Name>.md`: the definition. The frontmatter `name` must equal the file name.
 - `docs/agents/<Name>.md`: the agent's data sheet.
 - `docs/contracts/<name>-output.schema.json`: the JSON Schema of its output (lowercase name).
-- Routing table B in `orchestrator/policy.md` (section 2B) **and** its copy in `agents/clasificador.md`. The two must stay in sync.
+- Routing table B: edit `orchestrator/routing.json` and run `python3 scripts/render_routing.py`, which rewrites section 2B of `orchestrator/policy.md` and its copy in `agents/clasificador.md`. Do not edit the text between the `relevo:routing` markers by hand; `make docs-check` fails if either copy differs from the JSON.
 - `docs/routing.md`, `docs/INDEX.md` and `docs/GLOSSARY.md`.
 - A new ADR in `docs/decisions/` if the design changes.
 - `CHANGELOG.md` (under `[Unreleased]`).

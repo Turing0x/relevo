@@ -6,9 +6,9 @@ Este archivo cubre qué es el orquestador, sus componentes, el recorrido de una 
 
 El orquestador reparte el trabajo de una sesión de Claude Code entre tres familias de modelos (haiku, sonnet, opus) según el tipo de tarea. Aporta tres cosas que un único agente no da:
 
-- **Aislamiento de contexto.** Las lecturas ruidosas (búsquedas amplias, logs, salida de tests) ocurren en un worker y al router solo vuelve un reporte corto (`~/.claude/orchestrator/policy.md:7`, `:41`).
-- **Revisión independiente.** Un `verificador` con contexto limpio revisa el trabajo sin ver el razonamiento de quien lo hizo (`~/.claude/orchestrator/policy.md:45-46`).
-- **Paralelismo real** cuando los tramos tocan archivos disjuntos (`~/.claude/orchestrator/policy.md:29`, `:35`).
+- **Aislamiento de contexto.** Las lecturas ruidosas (búsquedas amplias, logs, salida de tests) ocurren en un worker y al router solo vuelve un reporte corto (`~/.claude/orchestrator/policy.md:7`, `:44`).
+- **Revisión independiente.** Un `verificador` con contexto limpio revisa el trabajo sin ver el razonamiento de quien lo hizo (`~/.claude/orchestrator/policy.md:48-49`).
+- **Paralelismo real** cuando los tramos tocan archivos disjuntos (`~/.claude/orchestrator/policy.md:30`, `:37`).
 
 Su naturaleza: **no es un programa.** Es texto en lenguaje natural que el modelo de la sesión principal interpreta (`~/.claude/CLAUDE.md:6` importa `~/.claude/orchestrator/policy.md`). Claude Code solo impone por sí mismo los permisos y los hooks (ver [Invariantes](#invariantes)).
 
@@ -33,6 +33,9 @@ Detalle en [routing.md](routing.md). Motivo registrado: "un worker arranca en fr
 | Hook `block-force-push` | `~/.claude/hooks/block-force-push` (PreToolUse Bash) | Sí: bloquea (exit 2) |
 | Hook `guard-secrets` | `~/.claude/hooks/guard-secrets` (PreToolUse Bash, Grep, Read) | Sí: pide confirmación (`ask`) |
 | Hook `orch-telemetry` | `~/.claude/hooks/orch-telemetry` (SubagentStop, async) | Sí: escribe el log |
+| Hook `orch-resume` | `~/.claude/hooks/orch-resume` (SessionStart `compact` y `resume`, timeout 5 s) | Sí: imprime el logbook activo `[VERIFICAR: que la salida llega al contexto; ver audit-pending.md]` |
+| Logbook de tarea | `<raíz git>/.claude/work/<tarea>/estado.md` (`~/.claude/orchestrator/policy.md:38`) | No (lo escribe y lee el router) |
+| Fuente de la tabla B | `orchestrator/routing.json` del repo → `scripts/render_routing.py` reescribe las dos copias | No en ejecución; CI (`make docs-check`) |
 | Log de telemetría | `~/.claude/orchestrator/log.jsonl` | — |
 | Resumen de telemetría | `~/.claude/orchestrator/stats.py`, comando `/orch-stats` (`~/.claude/commands/orch-stats.md`) | — |
 | Activación por proyecto | comando `/orchestrator-init` (`~/.claude/commands/orchestrator-init.md`), plantilla `~/.claude/orchestrator/project-template.md` | — |
@@ -71,11 +74,11 @@ Tarea ilustrativa: "añade validación de email al endpoint de registro" en un p
 |---|---|---|---|---|---|
 | 1 | Router | modelo de la sesión | Chat completo, `~/.claude/CLAUDE.md`, la política, CLAUDE.md del proyecto y `.claude/orchestrator.md` | — | `~/.claude/CLAUDE.md:6` |
 | 2 | Router clasifica en línea (sesión opus) o lanza `clasificador` | opus en línea / haiku | `clasificador`: solo la petición y hasta 3 archivos; sin CLAUDE.md (`omitClaudeMd: true`) | JSON con `tipo`, `riesgo`, `complejidad`, `ruta` | `~/.claude/orchestrator/policy.md:10-11`, `~/.claude/agents/clasificador.md:8-15` |
-| 3 | Router aplica tabla B: `implementacion`, 3 archivos → `implementador` | — | — | — | `~/.claude/orchestrator/policy.md:30` |
-| 4 | `implementador` | sonnet, effort high | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes, `Riesgo:` | `~/.claude/orchestrator/policy.md:39`, `~/.claude/agents/implementador.md` |
-| 5 | Router: gate determinista con el comando de test/lint/build del proyecto | — | — | Verde o rojo | `~/.claude/orchestrator/policy.md:44` |
-| 6 | `verificador` (riesgo medio y >1 archivo) | opus, effort high | Petición original literal, criterios, archivos, `base_commit` y `modo`; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos | `~/.claude/orchestrator/policy.md:45-46`, `~/.claude/agents/verificador.md` |
-| 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:63` |
+| 3 | Router aplica tabla B: `implementacion`, 3 archivos → `implementador` | — | — | — | `~/.claude/orchestrator/policy.md:31` |
+| 4 | `implementador` | sonnet, effort high | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes, `Riesgo:` | `~/.claude/orchestrator/policy.md:42`, `~/.claude/agents/implementador.md` |
+| 5 | Router: gate determinista con el comando de test/lint/build del proyecto | — | — | Verde o rojo | `~/.claude/orchestrator/policy.md:47` |
+| 6 | `verificador` (riesgo medio y >1 archivo) | opus, effort high | Petición original literal, criterios, archivos, `base_commit` y `modo`; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos | `~/.claude/orchestrator/policy.md:48-49`, `~/.claude/agents/verificador.md` |
+| 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:66` |
 | 8 | Hook `orch-telemetry` en cada fin de worker | — | Transcript del worker | Una línea en `log.jsonl` | `~/.claude/hooks/orch-telemetry:54-73` |
 
 Si el paso 6 devuelve `RECHAZADO`, ver [routing.md](routing.md#paso-2-tabla-a-respuestas-de-worker-y-acciones-sensibles). Ejemplos completos en [examples/](examples/implementacion-con-rechazo.md).
@@ -94,19 +97,19 @@ La columna "Impuesto por" distingue lo que Claude Code garantiza de lo que depen
 | Siempre se pide confirmación humana antes de una referencia explícita a `.env`, claves o credenciales en Bash, Grep o Read. | Claude Code: hook `guard-secrets` + `Read(**/.env*)`/`Edit(**/.env*)` en `ask` | `~/.claude/hooks/guard-secrets`, `~/.claude/settings.json:51`, `:55` |
 | Siempre se registra una línea de telemetría al terminar un worker con nombre y transcript. | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:113-119`, `~/.claude/hooks/orch-telemetry:58-59` |
 | `Explore`, `verificador` nunca editan archivos. | Solo prompt: ambos tienen `Bash`, que puede escribir | `~/.claude/agents/Explore.md:7`, `:10`; `~/.claude/agents/verificador.md:7`, `:12` |
-| Nunca se lanza `verificador` sobre un gate determinista en rojo. | Solo política | `~/.claude/orchestrator/policy.md:44` |
-| El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:46` |
-| Nunca más de 1 llamada a `arquitecto` ni más de 2 ciclos por tarea sin aprobación. | Solo política (no hay contador) | `~/.claude/orchestrator/policy.md:33-34` |
-| Las acciones sensibles siempre pasan por AskUserQuestion. | Solo política, salvo lo cubierto por permisos y hooks | `~/.claude/orchestrator/policy.md:15`, `:50-51` |
-| Una config de proyecto nunca relaja la política. | Solo política | `~/.claude/orchestrator/policy.md:66` |
+| Nunca se lanza `verificador` sobre un gate determinista en rojo. | Solo política | `~/.claude/orchestrator/policy.md:47` |
+| El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:49` |
+| Nunca más de 1 llamada a `arquitecto` ni más de 2 ciclos por tarea sin aprobación. | Solo política; el contador vive en el logbook `estado.md` y `orch-resume` lo reinyecta tras compactar o reanudar | `~/.claude/orchestrator/policy.md:35-36`, `:38` |
+| Las acciones sensibles siempre pasan por AskUserQuestion. | Solo política, salvo lo cubierto por permisos y hooks | `~/.claude/orchestrator/policy.md:15`, `:53-54` |
+| Una config de proyecto nunca relaja la política. | Solo política | `~/.claude/orchestrator/policy.md:69` |
 
 ## Estado y memoria entre pasos
 
 | Estado | Dónde vive | Quién lo lee |
 |---|---|---|
-| Contadores de presupuesto (llamadas a `arquitecto`, ciclos) | Solo en el contexto del router; no se persisten | Router |
+| Contadores de presupuesto (llamadas a `arquitecto`, ciclos), tramos, último veredicto y siguiente paso | Contexto del router y, si la tarea usa `arquitecto`, tiene más de un tramo o no se puede retomar solo con la petición y el diff, el logbook `<raíz git>/.claude/work/<tarea>/estado.md` (`~/.claude/orchestrator/policy.md:38`). Tras compactar o reanudar, el hook `orch-resume` imprime el logbook activo y sus contadores mandan | Router; `orch-resume` en `SessionStart` |
 | Plan y reportes largos | `<raíz git>/.claude/work/` | Router y workers por ruta |
 | Telemetría | `~/.claude/orchestrator/log.jsonl` | Solo `stats.py` / `/orch-stats`; el router no la consulta al enrutar |
 | Memoria persistente de workers | No existe (ningún worker declara `memory:`) | — |
 
-Sin repo git, los workers no escriben archivo y el detalle va resumido en su salida (`~/.claude/orchestrator/policy.md:41`).
+Sin repo git, los workers no escriben archivo y el detalle va resumido en su salida (`~/.claude/orchestrator/policy.md:44`).

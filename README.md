@@ -11,7 +11,7 @@ Multi-model orchestrator for Claude Code: routes each task to haiku, sonnet or o
 
 ## What it is
 
-relevo is a set of files for [Claude Code](https://code.claude.com/docs/en/overview): one policy written in natural language, six subagents ("workers"), three hooks, a permissions template and two slash commands. The main Claude Code session reads the policy on every start and acts as a **router**: for each request it decides whether to do the work itself or hand it to a worker running on a cheaper or stronger model.
+relevo is a set of files for [Claude Code](https://code.claude.com/docs/en/overview): one policy written in natural language, six subagents ("workers"), four hooks, a permissions template and two slash commands. The main Claude Code session reads the policy on every start and acts as a **router**: for each request it decides whether to do the work itself or hand it to a worker running on a cheaper or stronger model.
 
 Compared with using a single agent for everything, it gives you three things (source: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), "Propósito"):
 
@@ -96,7 +96,7 @@ HOME="$(mktemp -d)" ./scripts/install.sh
 
 **Uninstall:** `./scripts/uninstall.sh [--prefix DIR] [--dry-run]`. It undoes exactly what the manifest records. It deletes a file only if relevo created or replaced it and its content is still unchanged; a file you edited is kept (with a warning). A file that already existed in the prefix with identical content before the first install is never recorded, so it is never deleted. If you installed with `--force`, your original file is restored from the backup. In `settings.json` it removes only the entries relevo added (an `env` value only if you did not change it, and containers relevo created if they end up empty) and in `CLAUDE.md` the block between the `relevo:begin` and `relevo:end` markers. If relevo created `settings.json` or `CLAUDE.md` and they end up empty, they are deleted. Your telemetry log (`orchestrator/log.jsonl`) is always kept. Before changing anything it copies what it removes or unmerges under `<prefix>/.relevo-backups/`; it removes empty directories under `orchestrator/docs/` but may leave other empty ones (`agents/`, `hooks/`...). Use `--dry-run` first to see the plan.
 
-Other installer flags: `--force` (overwrite files that conflict, after backing them up), `--prefix DIR` (install somewhere other than `~/.claude`), `--no-settings` (do not touch `settings.json`), `--no-claude-md` (do not touch `CLAUDE.md`).
+Other installer flags: `--force` (overwrite files that conflict, after backing them up), `--prefix DIR` (install somewhere other than `~/.claude`), `--no-settings` (do not touch `settings.json`), `--no-claude-md` (do not touch `CLAUDE.md`), `--pin-backup` (never delete the backup this run makes). `./scripts/install.sh` passes them to `scripts/relevo_install.py`; `python3 scripts/relevo_install.py backups [--prefix DIR] [--pin NAME | --unpin NAME]` lists or pins backups.
 
 ### What the installer changes
 
@@ -117,9 +117,9 @@ What the settings merge adds, taken from [`templates/settings.example.json`](tem
 - `env`: `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (workers cannot spawn subagents) and `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` (default model for subagents without `model:`). If you already set either to a different value, yours is kept and the installer warns.
 - `permissions.deny`: 2 rules for `git push --force` / `-f`.
 - `permissions.ask`: 44 rules. These make Claude Code ask before `git push`, dependency installs (`npm`, `pip`, `brew`, `npx`...), deploys, `rm -r`, `git reset --hard`, edits to `.env*` and to the hooks, and similar. They apply to **all** your projects.
-- `hooks`: `block-force-push` (PreToolUse on Bash), `guard-secrets` (PreToolUse on Bash, Grep and Read) and `orch-telemetry` (SubagentStop, async).
+- `hooks`: `block-force-push` (PreToolUse on Bash), `guard-secrets` (PreToolUse on Bash, Grep and Read) `orch-telemetry` (SubagentStop, async) and `orch-resume` (SessionStart with the matchers `compact` and `resume`, timeout 5 s: prints the open task logbook `.claude/work/<task>/estado.md` so the budget counters survive a compaction).
 
-Your other settings keys are never touched, and the merge is idempotent. Before changing anything the installer saves the previous files under `<prefix>/.relevo-backups/<timestamp>/`. What it added is recorded in `<prefix>/orchestrator/.relevo-manifest.json`, which the uninstaller uses to undo exactly that. Read the [hooks](hooks/) and the template before installing; `--dry-run` shows a diff of `settings.json` and `CLAUDE.md` without writing.
+Your other settings keys are never touched, and the merge is idempotent. Before changing anything the installer saves the previous files under `<prefix>/.relevo-backups/<timestamp>/`. A backup identical to an earlier one (same checksum) reuses it; the 5 most recently used are kept, plus pinned ones and any that hold an original replaced with `--force`. If `settings.json` has comments (JSONC) or duplicate keys, the installer stops without writing anything, because rewriting it as JSON would lose them. What it added is recorded in `<prefix>/orchestrator/.relevo-manifest.json`, which the uninstaller uses to undo exactly that. Read the [hooks](hooks/) and the template before installing; `--dry-run` shows a diff of `settings.json` and `CLAUDE.md` without writing.
 
 ## Example
 

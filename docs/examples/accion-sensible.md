@@ -6,12 +6,12 @@ Petición: "Sube los cambios y despliega a producción."
 
 | # | Actor | Qué pasa | Regla |
 |---|---|---|---|
-| 1 | Router (opus) | Clasifica: `mecanica` (acción sensible pura), riesgo alto | `~/.claude/orchestrator/policy.md:28`, `~/.claude/agents/clasificador.md:16` |
-| 2 | Router | Tabla A, regla 1 (prioridad sobre B): acción de §6 a punto de ejecutarse → AskUserQuestion con la acción exacta (`git push origin main`, `vercel --prod`), el alcance y el rollback | `policy.md:15`, `:50` |
+| 1 | Router (opus) | Clasifica: `mecanica` (acción sensible pura), riesgo alto | `~/.claude/orchestrator/policy.md:29`, `~/.claude/agents/clasificador.md:16` |
+| 2 | Router | Tabla A, regla 1 (prioridad sobre B): acción de §6 a punto de ejecutarse → AskUserQuestion con la acción exacta (`git push origin main`, `vercel --prod`), el alcance y el rollback | `policy.md:15`, `:53` |
 | 3 | Usuario | Aprueba el push y rechaza el deploy | — |
 | 4 | Router | Ejecuta `git push origin main`. Claude Code vuelve a pedir permiso porque `Bash(git push:*)` está en `permissions.ask` | `~/.claude/settings.json` (`ask`) |
 | 5 | Hook `block-force-push` | Comprueba el comando: no es force push → exit 0 | `~/.claude/hooks/block-force-push:40-44` |
-| 6 | Router → usuario | Consolidación final: push hecho, deploy pendiente de aprobación | `policy.md:63` |
+| 6 | Router → usuario | Consolidación final: push hecho, deploy pendiente de aprobación | `policy.md:66` |
 
 Variantes:
 

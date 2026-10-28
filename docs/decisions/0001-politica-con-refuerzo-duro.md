@@ -7,11 +7,11 @@ El orquestador vive dentro de Claude Code, que carga CLAUDE.md en cada sesión y
 
 ## Decisión
 - Las reglas de routing, presupuesto y verificación son texto en `~/.claude/orchestrator/policy.md`, importado desde `~/.claude/CLAUDE.md:6`.
-- Lo crítico para la seguridad no depende solo del texto: "Refuerzo duro en `~/.claude/settings.json` (...): no depender solo de esta política" (`~/.claude/orchestrator/policy.md:51`).
+- Lo crítico para la seguridad no depende solo del texto: "Refuerzo duro en `~/.claude/settings.json` (...): no depender solo de esta política" (`~/.claude/orchestrator/policy.md:54`).
 
 ## Alternativas
 - Orquestador programado (Agent SDK u otro framework). `[VERIFICAR: no hay registro de que se evaluara]`.
-- Solo texto, sin hooks. Descartada para seguridad (`policy.md:51`).
+- Solo texto, sin hooks. Descartada para seguridad (`policy.md:54`).
 
 ## Consecuencias
 - Cero código que mantener para el routing. Cambiar una regla es editar texto.

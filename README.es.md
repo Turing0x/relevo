@@ -11,7 +11,7 @@ Orquestador multimodelo para Claude Code: reparte cada tarea entre subagentes ha
 
 ## Qué es
 
-relevo es un conjunto de archivos para [Claude Code](https://code.claude.com/docs/en/overview): una política escrita en lenguaje natural, seis subagentes («workers»), tres hooks, una plantilla de permisos y dos comandos. La sesión principal de Claude Code lee la política al arrancar y actúa como **router**: para cada petición decide si hace el trabajo ella misma o se lo pasa a un worker que corre en un modelo más barato o más potente.
+relevo es un conjunto de archivos para [Claude Code](https://code.claude.com/docs/en/overview): una política escrita en lenguaje natural, seis subagentes («workers»), cuatro hooks, una plantilla de permisos y dos comandos. La sesión principal de Claude Code lee la política al arrancar y actúa como **router**: para cada petición decide si hace el trabajo ella misma o se lo pasa a un worker que corre en un modelo más barato o más potente.
 
 Frente a usar un único agente para todo, aporta tres cosas (fuente: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), «Propósito»):
 
@@ -94,7 +94,7 @@ HOME="$(mktemp -d)" ./scripts/install.sh
 
 **Desinstalar:** `./scripts/uninstall.sh [--prefix DIR] [--dry-run]`. Deshace exactamente lo que registra el manifest. Borra un archivo solo si relevo lo creó o lo reemplazó y su contenido sigue igual; un archivo que hayas editado se conserva (con un aviso). Un archivo que ya existía en el prefijo con contenido idéntico antes de la primera instalación no se registra, así que nunca se borra. Si instalaste con `--force`, tu archivo original se restaura desde la copia de seguridad. En `settings.json` retira solo las entradas que añadió relevo (un valor de `env` solo si no lo cambiaste, y los contenedores que creó relevo si quedan vacíos) y en `CLAUDE.md` el bloque entre los marcadores `relevo:begin` y `relevo:end`. Si relevo creó `settings.json` o `CLAUDE.md` y quedan vacíos, se borran. Tu registro de telemetría (`orchestrator/log.jsonl`) se conserva siempre. Antes de cambiar nada copia lo que retira o deshace en `<prefix>/.relevo-backups/`; elimina los directorios vacíos bajo `orchestrator/docs/`, pero puede dejar otros vacíos (`agents/`, `hooks/`...). Usa antes `--dry-run` para ver el plan.
 
-Otras opciones del instalador: `--force` (sobrescribe los archivos en conflicto, tras hacer copia de seguridad), `--prefix DIR` (instala en un directorio distinto de `~/.claude`), `--no-settings` (no toca `settings.json`), `--no-claude-md` (no toca `CLAUDE.md`).
+Otras opciones del instalador: `--force` (sobrescribe los archivos en conflicto, tras hacer copia de seguridad), `--prefix DIR` (instala en un directorio distinto de `~/.claude`), `--no-settings` (no toca `settings.json`), `--no-claude-md` (no toca `CLAUDE.md`), `--pin-backup` (no borra nunca la copia de seguridad de esta ejecución). `./scripts/install.sh` se las pasa a `scripts/relevo_install.py`; `python3 scripts/relevo_install.py backups [--prefix DIR] [--pin NOMBRE | --unpin NOMBRE]` lista o fija las copias.
 
 ### Qué cambia el instalador
 
@@ -115,9 +115,9 @@ Lo que añade la fusión de settings, tomado de [`templates/settings.example.jso
 - `env`: `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (los workers no pueden lanzar subagentes) y `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` (modelo por defecto de los subagentes sin `model:`). Si ya tienes alguna con otro valor, se conserva el tuyo y el instalador avisa.
 - `permissions.deny`: 2 reglas para `git push --force` / `-f`.
 - `permissions.ask`: 44 reglas. Hacen que Claude Code pregunte antes de `git push`, instalar dependencias (`npm`, `pip`, `brew`, `npx`...), desplegar, `rm -r`, `git reset --hard`, editar `.env*` y los hooks, y similares. Se aplican a **todos** tus proyectos.
-- `hooks`: `block-force-push` (PreToolUse sobre Bash), `guard-secrets` (PreToolUse sobre Bash, Grep y Read) y `orch-telemetry` (SubagentStop, asíncrono).
+- `hooks`: `block-force-push` (PreToolUse sobre Bash), `guard-secrets` (PreToolUse sobre Bash, Grep y Read) `orch-telemetry` (SubagentStop, asíncrono) y `orch-resume` (SessionStart con los matchers `compact` y `resume`, timeout de 5 s: imprime el logbook de la tarea abierta `.claude/work/<tarea>/estado.md` para que los contadores de presupuesto sobrevivan a una compactación).
 
-El resto de claves de tu configuración no se toca, y la fusión es idempotente. Antes de cambiar nada, el instalador guarda los archivos previos en `<prefix>/.relevo-backups/<marca-de-tiempo>/`. Lo que añadió queda registrado en `<prefix>/orchestrator/.relevo-manifest.json`, que usa el desinstalador para deshacer exactamente eso. Lee los [hooks](hooks/) y la plantilla antes de instalar; `--dry-run` muestra un diff de `settings.json` y `CLAUDE.md` sin escribir.
+El resto de claves de tu configuración no se toca, y la fusión es idempotente. Antes de cambiar nada, el instalador guarda los archivos previos en `<prefix>/.relevo-backups/<marca-de-tiempo>/`. Si una copia es idéntica a otra anterior (mismo checksum), reutiliza esa; se conservan las 5 usadas más recientemente, más las fijadas y las que guardan un original reemplazado con `--force`. Si `settings.json` tiene comentarios (JSONC) o claves duplicadas, el instalador para sin escribir nada, porque al reescribirlo como JSON se perderían. Lo que añadió queda registrado en `<prefix>/orchestrator/.relevo-manifest.json`, que usa el desinstalador para deshacer exactamente eso. Lee los [hooks](hooks/) y la plantilla antes de instalar; `--dry-run` muestra un diff de `settings.json` y `CLAUDE.md` sin escribir.
 
 ## Ejemplo de uso
 

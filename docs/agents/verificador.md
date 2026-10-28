@@ -13,18 +13,18 @@ Lee el diff real, lo contrasta con los criterios, ejecuta tests/lint/build y bus
 - **Precision gate.** Solo hallazgos defendibles con evidencia (`archivo:línea`, comando o salida); nada de estilo salvo que oculte un defecto. Limpio: `Hallazgos: ninguno` (`:14`).
 - **Modo recheck.** Revisa solo `recheck_findings` y marca cada uno `resuelto` o `persiste`; todo hallazgo nuevo es advertencia. `RECHAZADO` solo si persiste alguno o aparece uno de los "siempre bloqueante" (`:15`).
 
-NO edita archivos, tampoco vía `Bash` (`:12`). NO verifica su propio trabajo (`:3`). NO recibe el razonamiento del implementador (`:9`; `~/.claude/orchestrator/policy.md:46`).
+NO edita archivos, tampoco vía `Bash` (`:12`). NO verifica su propio trabajo (`:3`). NO recibe el razonamiento del implementador (`:9`; `~/.claude/orchestrator/policy.md:49`).
 
 ## Cuándo se invoca
-- Tras el gate determinista en verde, si el riesgo es medio o alto o cambió más de un archivo (`~/.claude/orchestrator/policy.md:45`).
+- Tras el gate determinista en verde, si el riesgo es medio o alto o cambió más de un archivo (`~/.claude/orchestrator/policy.md:48`).
 - En rutas marcadas "verificador obligatorio" por la config de proyecto (`~/.claude/orchestrator/project-template.md`).
-- Tipo `revision` (`~/.claude/orchestrator/policy.md:26`).
-- En `modo: recheck` en el 2º ciclo tras `RECHAZADO` con `Causa: implementación` o dudosa; tras un replan, revisión completa (`~/.claude/orchestrator/policy.md:34`).
+- Tipo `revision` (`~/.claude/orchestrator/policy.md:27`).
+- En `modo: recheck` en el 2º ciclo tras `RECHAZADO` con `Causa: implementación` o dudosa; tras un replan, revisión completa (`~/.claude/orchestrator/policy.md:36`).
 
-Siempre con contexto limpio, aunque quien implementó fuera opus (`~/.claude/orchestrator/policy.md:45`). Ver [../routing.md](../routing.md#paso-4-verificación-dos-gates).
+Siempre con contexto limpio, aunque quien implementó fuera opus (`~/.claude/orchestrator/policy.md:48`). Ver [../routing.md](../routing.md#paso-4-verificación-dos-gates).
 
 ## Input
-Petición original literal del usuario, criterios de aceptación, lista de archivos, `base_commit` y `modo` (`normal` | `recheck`, con `recheck_findings`) (`~/.claude/orchestrator/policy.md:46`, `~/.claude/agents/verificador.md:9`). Ve CLAUDE.md de usuario y de proyecto. NO ve el historial del chat ni el razonamiento del implementador. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).
+Petición original literal del usuario, criterios de aceptación, lista de archivos, `base_commit` y `modo` (`normal` | `recheck`, con `recheck_findings`) (`~/.claude/orchestrator/policy.md:49`, `~/.claude/agents/verificador.md:9`). Ve CLAUDE.md de usuario y de proyecto. NO ve el historial del chat ni el razonamiento del implementador. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).
 
 ## Output
 Texto, máx. 8 hallazgos ordenados por severidad (`~/.claude/agents/verificador.md:16-21`):
@@ -49,8 +49,8 @@ Opus con contexto limpio: la independencia viene del contexto, no del cambio de 
 |---|---|---|
 | `RECHAZADO`, `Causa: implementación` o dudosa | Código incorrecto | Re-brief al mismo ejecutor (`~/.claude/orchestrator/policy.md:20`) |
 | `RECHAZADO`, `Causa: diseño` | Enfoque incorrecto | Replan con `arquitecto` (`~/.claude/orchestrator/policy.md:19`) |
-| Segundo `RECHAZADO` en la tarea | — | Parar y reportar (`~/.claude/orchestrator/policy.md:34`) |
-| Hallazgo nuevo en recheck | Defecto fuera de `recheck_findings` | Advertencia; no consume ciclo; va a la consolidación final (`~/.claude/orchestrator/policy.md:34`, `:63`) |
+| Segundo `RECHAZADO` en la tarea | — | Parar y reportar (`~/.claude/orchestrator/policy.md:36`) |
+| Hallazgo nuevo en recheck | Defecto fuera de `recheck_findings` | Advertencia; no consume ciclo; va a la consolidación final (`~/.claude/orchestrator/policy.md:36`, `:66`) |
 | Sin `base_commit` en el brief | Brief incompleto | No especificado `[VERIFICAR]` |
 | Cualquier veredicto en tarea `revision` | — | Consolidación final, sin re-brief (`~/.claude/orchestrator/policy.md:18`) |
 | Sin `Causa` | Incumple el contrato | Se trata como dudosa → re-brief (`~/.claude/orchestrator/policy.md:20`) |
@@ -68,4 +68,4 @@ Comandos: pnpm test → 42 passed
 
 ## Código
 - `~/.claude/agents/verificador.md`
-- `~/.claude/orchestrator/policy.md:18-20`, `:26`, `:34`, `:44-47`
+- `~/.claude/orchestrator/policy.md:18-20`, `:27`, `:36`, `:47-50`

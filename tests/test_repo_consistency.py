@@ -5,11 +5,17 @@ Pure regular expressions over repository files (standard library only), so it ru
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import importlib.util
+import io
 import json
 import re
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -217,6 +223,14 @@ def output_block(agent: str) -> list[str]:
     return lines[start + 1 :]
 
 
+def render_routing() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("render_routing", ROOT / "scripts" / "render_routing.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def high_risk_items(text: str, item: str) -> dict[str, str]:
     return {m.group(1): m.group(2).strip().rstrip(".").lower() for m in re.finditer(item, text)}
 
@@ -300,6 +314,64 @@ class PolicySyncTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, row.group(0))
                 self.assertIn(text, line)
+
+    def test_table_b_copies_match_routing_json(self) -> None:
+        routing = render_routing()
+        data = routing.load(ROOT)
+        for rel, body in routing.targets(data).items():
+            with self.subTest(file=rel):
+                self.assertEqual(routing.extract_block(read(*rel.split("/")), rel), body)
+
+    def test_every_threshold_reaches_both_copies(self) -> None:
+        routing = render_routing()
+        data = routing.load(ROOT)
+        policy, clasificador = routing.render_policy(data), routing.render_clasificador(data)
+        for row in data["filas"]:
+            for name in sorted(routing.placeholders(row["clasificador"])):
+                value = str(data["umbrales"][name])
+                with self.subTest(row=row["etiqueta"], umbral=name):
+                    self.assertIn(value, policy)
+                    self.assertIn(value, clasificador)
+
+    def test_check_fails_when_a_copy_diverges(self) -> None:
+        routing = render_routing()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for rel in (routing.SOURCE, routing.POLICY, routing.CLASIFICADOR):
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(ROOT / rel, root / rel)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(routing.run(root, check=True), 0)
+                path = root / routing.CLASIFICADOR
+                path.write_text(
+                    path.read_text(encoding="utf-8").replace("≤2 archivos y salida", "≤3 archivos y salida")
+                )
+                self.assertEqual(routing.run(root, check=True), 1)
+                self.assertEqual(routing.run(root, check=False), 0)
+                self.assertEqual(routing.run(root, check=True), 0)
+            self.assertEqual(
+                (root / routing.CLASIFICADOR).read_text(encoding="utf-8"), read("agents", "clasificador.md")
+            )
+
+    def test_routing_json_rejects_incomplete_or_unshared_thresholds(self) -> None:
+        routing = render_routing()
+        good = json.loads(read("orchestrator", "routing.json"))
+        broken = []
+        missing_type = copy.deepcopy(good)
+        missing_type["filas"] = [r for r in missing_type["filas"] if "revision" not in r["tipos"]]
+        broken.append(missing_type)
+        only_in_table = copy.deepcopy(good)
+        next(r for r in only_in_table["filas"] if r["tipos"] == ["mecanica"])["clasificador"] = "mecanica → rapido"
+        broken.append(only_in_table)
+        unused = copy.deepcopy(good)
+        unused["umbrales"]["sobrante"] = 1
+        broken.append(unused)
+        not_positive = copy.deepcopy(good)
+        not_positive["umbrales"]["mecanica_max_archivos"] = 0
+        broken.append(not_positive)
+        for index, data in enumerate(broken):
+            with self.subTest(case=index), self.assertRaises(routing.RoutingError):
+                routing.validate(data)
 
 
 class BriefAndVerifierContractTests(unittest.TestCase):
