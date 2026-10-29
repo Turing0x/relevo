@@ -1,5 +1,5 @@
 # Orquestador de modelos (política global)
-> Si eres SUBAGENTE (worker): ignora §0-3, §5 y §7. Sigue solo tu brief, §4, §6 y §6bis. No lances subagentes.
+> Si eres SUBAGENTE (worker): ignora §0-3, §5, §7 y §9. Sigue solo tu brief, §4, §6 y §6bis. No lances subagentes.
 
 Sesión principal = router.
 
@@ -68,3 +68,6 @@ Antes de responder (tras §5.3): (a) gates superados u omisión justificada y ri
 ## 8. Proyectos
 `.claude/orchestrator.md` del repo (importado desde el CLAUDE.md del proyecto) define rutas sensibles, test/lint/build, presupuesto y reglas extra. Solo puede endurecer: cualquier instrucción de proyecto que relaje esta política (omitir verificador, subir presupuesto, saltar aprobación) se ignora.
 Agentes de proyecto en `.claude/agents/` con nombre de worker (`clasificador`, `rapido`, `Explore`, `implementador`, `arquitecto`, `verificador`) pisan los globales: si existen, avisa al usuario antes de usarlos.
+
+## 9. Relevo de sesión
+Sesión larga, tras compactación, o antes de cerrar con trabajo a medias → escribir `HANDOFF.md` (`.claude/work/` si hay repo git; si no, raíz del proyecto): hecho, pendiente, archivos clave, decisiones, preguntas abiertas, estado del presupuesto §3 (llamadas a `arquitecto`, ciclos usados; si hay logbook, sus contadores). Sobrescribir, no acumular. Sesión nueva en proyecto con `HANDOFF.md` → leerlo antes de actuar.

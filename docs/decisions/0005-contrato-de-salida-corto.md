@@ -12,6 +12,6 @@ Cada worker devuelve un reporte de ≤8 líneas (≤12 en `Explore`) con ESTADO,
 - Reportes libres (versión anterior). Descartada por el consumo de contexto.
 
 ## Consecuencias
-- `/orchestrator-init` debe añadir `.claude/work/` a `.gitignore` (`~/.claude/commands/orchestrator-init.md:8`).
+- `/orchestrator-init` debe añadir `.claude/work/` a `.gitignore` (`~/.claude/commands/orchestrator-init.md:13`).
 - Sin repo git, el detalle va resumido en la salida (`policy.md:44`).
 - Los proyectos activados antes de este cambio no tienen `.claude/work/` en `.gitignore` (ver [../failure-modes.md](../failure-modes.md)).

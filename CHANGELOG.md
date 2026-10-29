@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Policy §9 "Relevo de sesión": in long sessions, after a compaction or before closing with work left, the router overwrites `HANDOFF.md` (done, pending, key files, decisions, open questions, §3 budget); a new session reads it before acting. Workers ignore §9.
+- `/orchestrator-init` detects three modes: inside a git repo, a multi-repo root (no git, git subfolders at level 1 or 2: init each subrepo, then a root `orchestrator.md`, `CLAUDE.md` and `settings.json` with `<subrepo>/`-prefixed sensitive paths) and no repo (skips the `.gitignore` step). It also detects `pubspec.yaml` and fixes only stale data in an existing `orchestrator.md`.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added
