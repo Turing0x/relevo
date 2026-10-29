@@ -7,7 +7,7 @@ Multi-model orchestrator for Claude Code: routes each task to haiku, sonnet or o
 [![CI](https://github.com/Turing0x/relevo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Turing0x/relevo/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Status: alpha (`0.1.0`).** Expect rough edges. Some behaviors still have to be verified in a live Claude Code session; they are listed in [`docs/audit-pending.md`](docs/audit-pending.md).
+> **Status: alpha (`0.2.0`).** Expect rough edges. Some behaviors still have to be verified in a live Claude Code session; they are listed in [`docs/audit-pending.md`](docs/audit-pending.md).
 
 ## What it is
 
@@ -63,7 +63,7 @@ flowchart TD
 
 ## Status
 
-Alpha, version `0.1.0`. The design is documented and tested at the hook and installer level, but several behaviors of Claude Code have not been verified in a live session yet; they are tracked in [`docs/audit-pending.md`](docs/audit-pending.md). Expect changes between `0.1.x` releases.
+Alpha, version `0.2.0`. The design is documented and tested at the hook and installer level, but several behaviors of Claude Code have not been verified in a live session yet; they are tracked in [`docs/audit-pending.md`](docs/audit-pending.md). Expect changes between `0.2.x` releases.
 
 ## Requirements
 
