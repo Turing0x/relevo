@@ -635,7 +635,7 @@ def list_backups(prefix: Path) -> list[Path]:
 
 
 def _backup_order(root: Path) -> tuple[int, int]:
-    """Time of last use in nanoseconds (for a backup made before 0.3.0, its name's stamp), then the name counter.
+    """Time of last use in nanoseconds (for a backup made before 0.2.0, its name's stamp), then the name counter.
 
     Nanoseconds and not the one-second stamp of the name: several runs within one second must keep their order.
     """
@@ -648,7 +648,7 @@ def _backup_order(root: Path) -> tuple[int, int]:
 
 
 def backup_meta(root: Path) -> dict[str, Any]:
-    """The metadata of a backup; for a backup made before 0.3.0 it is computed from its files."""
+    """The metadata of a backup; for a backup made before 0.2.0 it is computed from its files."""
     try:
         data = json.loads(read_text(root / BACKUP_META))
         if isinstance(data, dict) and isinstance(data.get("checksum"), str):
