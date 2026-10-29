@@ -297,6 +297,16 @@ class BrokenInstallTests(DoctorCase):
         self.assertNotEqual(policy.read_text(encoding="utf-8"), text)
         self.assertEqual(self.assert_fails("routing:sync")["details"], ["orchestrator/policy.md"])
 
+    def test_installed_doctor_never_runs_a_render_outside_the_manifest(self) -> None:
+        (self.prefix / "orchestrator" / "render_routing.py").unlink()
+        (self.prefix / "scripts").mkdir()
+        decoy = self.prefix / "scripts" / "render_routing.py"
+        marker = self.prefix / "decoy-ran"
+        decoy.write_text(f"open({str(marker)!r}, 'w').close()\n", encoding="utf-8")
+        _code, checks, _ = self.run_doctor()
+        self.assertEqual(checks["routing:sync"]["status"], "warn")
+        self.assertFalse(marker.exists())
+
     def test_install_without_routing_json_is_a_warning(self) -> None:
         (self.prefix / "orchestrator" / "routing.json").unlink()
         _code, checks, _ = self.run_doctor()
