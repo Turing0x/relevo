@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 BEGIN_MARK = "<!-- relevo:begin -->"

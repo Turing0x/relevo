@@ -7,7 +7,7 @@ Orquestador multimodelo para Claude Code: reparte cada tarea entre subagentes ha
 [![CI](https://github.com/Turing0x/relevo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Turing0x/relevo/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Estado: alpha (`0.1.0`).** Espera asperezas. Algunos comportamientos aún deben comprobarse en una sesión real de Claude Code; están listados en [`docs/audit-pending.md`](docs/audit-pending.md).
+> **Estado: alpha (`0.2.0`).** Espera asperezas. Algunos comportamientos aún deben comprobarse en una sesión real de Claude Code; están listados en [`docs/audit-pending.md`](docs/audit-pending.md).
 
 ## Qué es
 
@@ -61,7 +61,7 @@ La «tabla B» es la tabla de rutas de [`docs/routing.md`](docs/routing.md). Los
 
 ## Estado
 
-Alpha, versión `0.1.0`. El diseño está documentado y probado a nivel de hooks e instalador, pero varios comportamientos de Claude Code aún no se han comprobado en una sesión real; están en [`docs/audit-pending.md`](docs/audit-pending.md). Espera cambios entre versiones `0.1.x`.
+Alpha, versión `0.2.0`. El diseño está documentado y probado a nivel de hooks e instalador, pero varios comportamientos de Claude Code aún no se han comprobado en una sesión real; están en [`docs/audit-pending.md`](docs/audit-pending.md). Espera cambios entre versiones `0.2.x`.
 
 ## Requisitos
 

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-29
+
 ### Added
 
 - Numbered high-risk list (policy §6bis), shared with `clasificador`, and a mandatory `Riesgo:` line in the `implementador` and `rapido` reports that feeds the final risk.
@@ -53,5 +55,6 @@ First public release (alpha).
 - Community files: README (English and Spanish), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `GOVERNANCE.md`, issue forms and a pull request template.
 - MIT license.
 
-[Unreleased]: https://github.com/Turing0x/relevo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Turing0x/relevo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Turing0x/relevo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Turing0x/relevo/releases/tag/v0.1.0
