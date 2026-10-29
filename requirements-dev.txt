@@ -1,7 +1,7 @@
 # Development tools only (lint, type check, schema and workflow checks). Requires Python >= 3.11.
 # Not needed to install or use relevo. Install with: make install-dev
-ruff==0.17.0
+ruff==0.17.1
 mypy==2.4.0
 jsonschema==4.26.0
-zizmor==1.31.0
+zizmor==1.31.1
 PyYAML==6.0.3
