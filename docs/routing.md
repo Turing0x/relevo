@@ -99,7 +99,7 @@ Fable no está en la escalera; opus es el techo ([decisions/0002-modelo-por-rol.
 |---|---|---|---|
 | Llamadas a `arquitecto` por tarea (incluido replan) | 1 | AskUserQuestion; sin permiso, parar y reportar | `~/.claude/orchestrator/policy.md:19`, `:35` |
 | Ciclos implementar→verificar | 2 (todo RECHAZADO cuenta; el replan no reinicia; el 2º tras `Causa: implementación` es recheck y un hallazgo nuevo no consume ciclo) | Parar y reportar; advertencias abiertas a la consolidación final | `~/.claude/orchestrator/policy.md:36` |
-| Turnos por llamada a worker | `maxTurns` del agente | El worker se detiene `[VERIFICAR: comportamiento exacto al alcanzar maxTurns; ver audit-pending.md]` | `~/.claude/orchestrator/policy.md:37` |
+| Turnos por llamada a worker | `maxTurns` del agente | El worker se detiene y vuelve al router con una nota de límite de turnos, sin `ESTADO` (E2E, [audit-pending.md](audit-pending.md) #2) | `~/.claude/orchestrator/policy.md:37` |
 | Logbook `.claude/work/<tarea>/estado.md` | Se crea si hay `arquitecto`, más de un tramo o la tarea no se retoma solo con la petición y el diff; guarda `arquitecto: N/1` y `ciclos: N/2` | Tras compactar o reanudar, `orch-resume` lo imprime y sus contadores mandan sobre la memoria del chat; nunca bajan | `~/.claude/orchestrator/policy.md:38` |
 | Paralelismo | Solo con archivos disjuntos y unidades de comportamiento independientes (~100+ líneas cada una); código, tests y docs de una unidad en el mismo worker | — | `~/.claude/orchestrator/policy.md:37` |
 

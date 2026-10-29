@@ -48,7 +48,7 @@ sys.exit(1 if bad else 0)
 endef
 export COMPILE_CHECK
 
-.PHONY: help check lint lint-workflows typecheck test docs-check install-dev secret-scan
+.PHONY: help check lint lint-workflows typecheck test e2e docs-check install-dev secret-scan
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -e 's/:.*## /\t/' | sort
@@ -67,13 +67,16 @@ lint-workflows: ## actionlint and zizmor on .github/workflows
 
 typecheck: ## mypy (strict on scripts/)
 	@if command -v $(MYPY) >/dev/null 2>&1; then \
-		$(MYPY) --strict scripts/*.py && \
+		$(MYPY) --strict scripts/*.py orchestrator/doctor.py && \
 		$(MYPY) tests orchestrator/stats.py && \
 		for hook in hooks/*; do $(MYPY) "$$hook" || exit 1; done; \
 	else $(call missing,mypy); fi
 
 test: ## Run the unittest suite
 	$(PY) -m unittest discover -s tests -p 'test_*.py' -v
+
+e2e: ## Real Claude Code against a fake Messages API (opt-in, needs the claude CLI; no API key, no cost)
+	RELEVO_E2E=1 $(PY) -m unittest discover -s tests/e2e -t . -p 'test_*.py' -v
 
 docs-check: ## Links, JSON Schemas, agent cards and table B sync
 	$(PY) scripts/render_routing.py --check

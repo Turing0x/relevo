@@ -6,7 +6,7 @@ ADR del orquestador. Términos en [../GLOSSARY.md](../GLOSSARY.md). Rutas absolu
 El orquestador vive dentro de Claude Code, que carga CLAUDE.md en cada sesión y aplica permisos y hooks. La primera versión era una lista de reglas en CLAUDE.md (`~/.claude/backups/orch-1792227575/CLAUDE.md`).
 
 ## Decisión
-- Las reglas de routing, presupuesto y verificación son texto en `~/.claude/orchestrator/policy.md`, importado desde `~/.claude/CLAUDE.md:6`.
+- Las reglas de routing, presupuesto y verificación son texto en `~/.claude/orchestrator/policy.md`, importado desde `~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`).
 - Lo crítico para la seguridad no depende solo del texto: "Refuerzo duro en `~/.claude/settings.json` (...): no depender solo de esta política" (`~/.claude/orchestrator/policy.md:54`).
 
 ## Alternativas

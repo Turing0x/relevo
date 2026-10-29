@@ -41,7 +41,7 @@ Clasificar es una tarea corta de patrón; haiku a effort low basta. Ver [../deci
 | Riesgo infravalorado | Juicio del modelo | El router usa el máximo con su propio juicio (`~/.claude/orchestrator/policy.md:11`) |
 | `ruta` distinta de la tabla B de la política | Copias desincronizadas | Imposible en una instalación desde el repo: las dos copias se generan desde `orchestrator/routing.json` con `scripts/render_routing.py`, y `make docs-check` y `tests/test_repo_consistency.py` fallan en CI si divergen (`~/.claude/orchestrator/policy.md:23`) |
 | Lista de alto riesgo distinta de §6bis | Copias desincronizadas | `tests/test_repo_consistency.py` falla en CI |
-| Agota 3 turnos | Lee demasiado | `[VERIFICAR: comportamiento al alcanzar maxTurns]` |
+| Agota 3 turnos | Lee demasiado | Vuelve al router con una nota de límite de turnos y sin `ESTADO`; no se dispara `SubagentStop` y no queda línea en `log.jsonl` (E2E con Claude Code 2.1.312, [../audit-pending.md](../audit-pending.md) #2) |
 
 ## Ejemplo
 Ilustrativo (no hay trazas reales de este worker en `~/.claude/orchestrator/log.jsonl`).

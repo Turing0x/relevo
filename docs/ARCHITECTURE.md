@@ -10,7 +10,7 @@ El orquestador reparte el trabajo de una sesión de Claude Code entre tres famil
 - **Revisión independiente.** Un `verificador` con contexto limpio revisa el trabajo sin ver el razonamiento de quien lo hizo (`~/.claude/orchestrator/policy.md:48-49`).
 - **Paralelismo real** cuando los tramos tocan archivos disjuntos (`~/.claude/orchestrator/policy.md:30`, `:37`).
 
-Su naturaleza: **no es un programa.** Es texto en lenguaje natural que el modelo de la sesión principal interpreta (`~/.claude/CLAUDE.md:6` importa `~/.claude/orchestrator/policy.md`). Claude Code solo impone por sí mismo los permisos y los hooks (ver [Invariantes](#invariantes)).
+Su naturaleza: **no es un programa.** Es texto en lenguaje natural que el modelo de la sesión principal interpreta (`~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`) importa `~/.claude/orchestrator/policy.md`). Claude Code solo impone por sí mismo los permisos y los hooks (ver [Invariantes](#invariantes)).
 
 ## Cuándo NO usarlo (delegar)
 
@@ -27,17 +27,18 @@ Detalle en [routing.md](routing.md). Motivo registrado: "un worker arranca en fr
 | Componente | Archivo | Impuesto por Claude Code |
 |---|---|---|
 | Política global | `~/.claude/orchestrator/policy.md` | No (lo interpreta el modelo) |
-| Import de la política | `~/.claude/CLAUDE.md:6` | Sí (carga en cada sesión) |
+| Import de la política | `~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`) | Sí (carga en cada sesión) |
 | Workers (6) | `~/.claude/agents/{clasificador,Explore,rapido,implementador,arquitecto,verificador}.md` | Sí: modelo, effort, maxTurns, tools. No: el prompt |
 | Permisos | `~/.claude/settings.json` `permissions.ask`/`deny` | Sí |
 | Hook `block-force-push` | `~/.claude/hooks/block-force-push` (PreToolUse Bash) | Sí: bloquea (exit 2) |
 | Hook `guard-secrets` | `~/.claude/hooks/guard-secrets` (PreToolUse Bash, Grep, Read) | Sí: pide confirmación (`ask`) |
-| Hook `orch-telemetry` | `~/.claude/hooks/orch-telemetry` (SubagentStop, async) | Sí: escribe el log |
-| Hook `orch-resume` | `~/.claude/hooks/orch-resume` (SessionStart `compact` y `resume`, timeout 5 s) | Sí: imprime el logbook activo `[VERIFICAR: que la salida llega al contexto; ver audit-pending.md]` |
+| Hook `orch-telemetry` | `~/.claude/hooks/orch-telemetry` (SubagentStop, async) | Sí: escribe el log cuando el worker termina con un reporte (no en `maxTurns`, error de API ni en `claude -p`; ver [failure-modes.md](failure-modes.md)) |
+| Hook `orch-resume` | `~/.claude/hooks/orch-resume` (SessionStart `compact` y `resume`, timeout 5 s) | Sí: imprime el logbook activo y la salida llega al contexto del router (E2E `tests/e2e/`, Claude Code 2.1.312) |
 | Logbook de tarea | `<raíz git>/.claude/work/<tarea>/estado.md` (`~/.claude/orchestrator/policy.md:38`) | No (lo escribe y lee el router) |
-| Fuente de la tabla B | `orchestrator/routing.json` del repo → `scripts/render_routing.py` reescribe las dos copias | No en ejecución; CI (`make docs-check`) |
+| Fuente de la tabla B | `orchestrator/routing.json` del repo → `scripts/render_routing.py` reescribe las dos copias; ambos se instalan en `~/.claude/orchestrator/` para `routing:sync` | No en ejecución; CI (`make docs-check`) y `/orch-doctor` |
 | Log de telemetría | `~/.claude/orchestrator/log.jsonl` | — |
 | Resumen de telemetría | `~/.claude/orchestrator/stats.py`, comando `/orch-stats` (`~/.claude/commands/orch-stats.md`) | — |
+| Diagnóstico | `~/.claude/orchestrator/doctor.py`, comando `/orch-doctor` (`~/.claude/commands/orch-doctor.md`): nueve comprobaciones de solo lectura con id, `pass`/`warn`/`fail` y remedio que nunca se aplica solo | No (a demanda) |
 | Activación por proyecto | comando `/orchestrator-init` (`~/.claude/commands/orchestrator-init.md`), plantilla `~/.claude/orchestrator/project-template.md` | — |
 | Config de proyecto | `<repo>/.claude/orchestrator.md` | No |
 | Límite de anidamiento | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (`~/.claude/settings.json:3`) | Sí |
@@ -72,7 +73,7 @@ Tarea ilustrativa: "añade validación de email al endpoint de registro" en un p
 
 | Paso | Quién | Modelo | Contexto que recibe | Qué devuelve | Fuente |
 |---|---|---|---|---|---|
-| 1 | Router | modelo de la sesión | Chat completo, `~/.claude/CLAUDE.md`, la política, CLAUDE.md del proyecto y `.claude/orchestrator.md` | — | `~/.claude/CLAUDE.md:6` |
+| 1 | Router | modelo de la sesión | Chat completo, `~/.claude/CLAUDE.md`, la política, CLAUDE.md del proyecto y `.claude/orchestrator.md` | — | `~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`) |
 | 2 | Router clasifica en línea (sesión opus) o lanza `clasificador` | opus en línea / haiku | `clasificador`: solo la petición y hasta 3 archivos; sin CLAUDE.md (`omitClaudeMd: true`) | JSON con `tipo`, `riesgo`, `complejidad`, `ruta` | `~/.claude/orchestrator/policy.md:10-11`, `~/.claude/agents/clasificador.md:8-15` |
 | 3 | Router aplica tabla B: `implementacion`, 3 archivos → `implementador` | — | — | — | `~/.claude/orchestrator/policy.md:31` |
 | 4 | `implementador` | sonnet, effort high | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes, `Riesgo:` | `~/.claude/orchestrator/policy.md:42`, `~/.claude/agents/implementador.md` |
@@ -89,13 +90,13 @@ La columna "Impuesto por" distingue lo que Claude Code garantiza de lo que depen
 
 | Invariante | Impuesto por | Fuente |
 |---|---|---|
-| Ningún worker lanza subagentes. | Claude Code: `disallowedTools: Agent` o lista `tools` sin `Agent`, y `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` | `~/.claude/agents/*.md:7`, `~/.claude/settings.json:3` |
+| Ningún worker lanza subagentes. | Claude Code: `disallowedTools: Agent` o lista `tools` sin `Agent`, y `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (el E2E comprueba que con profundidad 1 un subagente sin restricciones no recibe la herramienta `Agent`); `/orch-doctor` (`env`) avisa si la profundidad no es 1 | `~/.claude/agents/*.md:7`, `~/.claude/settings.json:3` |
 | Cada worker usa siempre su modelo, effort y maxTurns del frontmatter. | Claude Code (el `model:` del frontmatter tiene prioridad sobre `CLAUDE_CODE_SUBAGENT_MODEL`) | `~/.claude/agents/*.md:4-6` |
 | `clasificador` y `Explore` nunca ven CLAUDE.md. | Claude Code (`omitClaudeMd: true`) | `~/.claude/agents/clasificador.md:8`, `~/.claude/agents/Explore.md:8` |
 | `clasificador` nunca ejecuta comandos ni edita. | Claude Code (`tools: Read, Grep, Glob`) | `~/.claude/agents/clasificador.md:7` |
 | Nunca se ejecuta un force push ni un borrado remoto de rama vía Bash. | Claude Code: `permissions.deny` + hook `block-force-push` (exit 2) | `~/.claude/settings.json:7-10`, `~/.claude/hooks/block-force-push:40-43` |
 | Siempre se pide confirmación humana antes de una referencia explícita a `.env`, claves o credenciales en Bash, Grep o Read. | Claude Code: hook `guard-secrets` + `Read(**/.env*)`/`Edit(**/.env*)` en `ask` | `~/.claude/hooks/guard-secrets`, `~/.claude/settings.json:51`, `:55` |
-| Siempre se registra una línea de telemetría al terminar un worker con nombre y transcript. | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:113-119`, `~/.claude/hooks/orch-telemetry:58-59` |
+| Se registra una línea de telemetría cuando un worker con nombre y transcript termina con un reporte. No hay línea si se detiene por `maxTurns` o por un error de API (no se dispara `SubagentStop`), ni en `claude -p`, que sale antes de que corra el hook `async` (E2E con Claude Code 2.1.312). | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:81-91`, `~/.claude/hooks/orch-telemetry:58-59` |
 | `Explore`, `verificador` nunca editan archivos. | Solo prompt: ambos tienen `Bash`, que puede escribir | `~/.claude/agents/Explore.md:7`, `:10`; `~/.claude/agents/verificador.md:7`, `:12` |
 | Nunca se lanza `verificador` sobre un gate determinista en rojo. | Solo política | `~/.claude/orchestrator/policy.md:47` |
 | El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:49` |

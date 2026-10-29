@@ -50,16 +50,35 @@ def is_closed(text):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     return bool(lines) and bool(CLOSED.match(lines[-1]))
 
-def read_logbook(task_dir):
-    # El directorio de la tarea y estado.md se abren con O_NOFOLLOW (el archivo relativo al fd del
-    # directorio), así que un symlink colocado entre la comprobación y la apertura no se sigue.
-    # O_NONBLOCK + S_ISREG: un FIFO o un dispositivo no bloquea el hook, se descarta.
-    dfd = os.open(task_dir, os.O_RDONLY | DIRECTORY | NOFOLLOW)
+def open_dir(name, parent_fd):
+    # Un componente de ruta abierto relativo al fd de su padre y con O_NOFOLLOW: un symlink colocado
+    # entre la comprobación y el uso nunca se sigue (sin TOCTOU entre comprobar la ruta y abrirla).
+    return os.open(name, os.O_RDONLY | DIRECTORY | NOFOLLOW, dir_fd=parent_fd)
+
+def open_work(root):
+    # .claude y .claude/work encadenados por dir_fd; None si alguno no existe o es un symlink.
+    fd = os.open(root, os.O_RDONLY | DIRECTORY)
     try:
-        if os.open in os.supports_dir_fd:
-            fd = os.open("estado.md", os.O_RDONLY | NOFOLLOW | NONBLOCK, dir_fd=dfd)
-        else:
-            fd = os.open(os.path.join(task_dir, "estado.md"), os.O_RDONLY | NOFOLLOW | NONBLOCK)
+        for name in (".claude", "work"):
+            try:
+                child = open_dir(name, fd)
+            except OSError:
+                return None
+            os.close(fd)
+            fd = child
+        work, fd = fd, -1
+        return work
+    finally:
+        if fd != -1:
+            os.close(fd)
+
+def read_logbook(work_fd, name):
+    # El directorio de la tarea y estado.md se abren con O_NOFOLLOW relativos al fd de su padre, así
+    # que un symlink colocado entre la comprobación y la apertura no se sigue.
+    # O_NONBLOCK + S_ISREG: un FIFO o un dispositivo no bloquea el hook, se descarta.
+    dfd = open_dir(name, work_fd)
+    try:
+        fd = os.open("estado.md", os.O_RDONLY | NOFOLLOW | NONBLOCK, dir_fd=dfd)
     finally:
         os.close(dfd)
     with os.fdopen(fd, "rb") as f:
@@ -69,19 +88,23 @@ def read_logbook(task_dir):
         return st, f.read(MAX_BYTES + 1).decode("utf-8", "replace")
 
 def candidates(root):
-    work = os.path.join(root, ".claude", "work")
-    if os.path.islink(os.path.join(root, ".claude")) or os.path.islink(work) or not os.path.isdir(work):
+    if not NOFOLLOW or not DIRECTORY or os.open not in os.supports_dir_fd or os.listdir not in os.supports_fd:
+        return []  # sin O_NOFOLLOW ni dir_fd no hay lectura segura: no se reinyecta nada
+    work_fd = open_work(root)
+    if work_fd is None:
         return []
     found = []
-    for name in os.listdir(work):
-        path = os.path.join(work, name, "estado.md")
-        try:
-            st, text = read_logbook(os.path.join(work, name))
-        except OSError:
-            continue
-        if st is None or is_closed(text):
-            continue
-        found.append((st.st_mtime, os.path.relpath(path, root), text))
+    try:
+        for name in os.listdir(work_fd):
+            try:
+                st, text = read_logbook(work_fd, name)
+            except OSError:
+                continue
+            if st is None or is_closed(text):
+                continue
+            found.append((st.st_mtime, os.path.join(".claude", "work", name, "estado.md"), text))
+    finally:
+        os.close(work_fd)
     return sorted(found, reverse=True)
 
 def main():

@@ -41,7 +41,8 @@ El orquestador es una política en lenguaje natural (`~/.claude/orchestrator/pol
 | [decisions/0008-guard-secrets-ask.md](decisions/0008-guard-secrets-ask.md) | Hook `guard-secrets` con `ask` | — |
 | [decisions/0009-riesgo-declarado-y-recheck.md](decisions/0009-riesgo-declarado-y-recheck.md) | Lista de alto riesgo, línea `Riesgo:`, recheck y severidad con base | — |
 | [decisions/0010-fuente-unica-logbook-y-backups.md](decisions/0010-fuente-unica-logbook-y-backups.md) | Tabla B generada desde `routing.json`, logbook `estado.md` con el hook `orch-resume`, y backups del instalador con retención | — |
-| [audit-pending.md](audit-pending.md) | Comprobaciones en ejecución pendientes (`[VERIFICAR]`) | Hagas la auditoría |
+| [decisions/0011-doctor-y-e2e.md](decisions/0011-doctor-y-e2e.md) | `/orch-doctor` (diagnóstico de solo lectura) y E2E con modelo falso; hallazgos sobre `SubagentStop` y `maxTurns` | Algo de la instalación no funcione, o actualices Claude Code |
+| [audit-pending.md](audit-pending.md) | Comprobaciones en ejecución: cerradas por el E2E y pendientes (`[VERIFICAR]`) | Hagas la auditoría |
 
 ## Orden de lectura recomendado
 

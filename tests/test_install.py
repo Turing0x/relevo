@@ -47,6 +47,11 @@ def snapshot(base: Path) -> dict[str, bytes]:
     return out
 
 
+def manifest_files(prefix: Path) -> dict[str, str]:
+    files: dict[str, str] = json.loads((prefix / "orchestrator" / ".relevo-manifest.json").read_text("utf-8"))["files"]
+    return files
+
+
 class InstallerCase(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -98,6 +103,7 @@ class InstallerCase(unittest.TestCase):
             shutil.copytree(ROOT / name, src / name, ignore=ignore)
         (src / "scripts").mkdir()
         shutil.copy2(INSTALLER, src / "scripts" / "relevo_install.py")
+        shutil.copy2(ROOT / "scripts" / "render_routing.py", src / "scripts" / "render_routing.py")
         return src / "scripts" / "relevo_install.py"
 
     USER_SETTINGS: ClassVar[dict[str, Any]] = {
@@ -123,8 +129,14 @@ class FreshInstallTests(InstallerCase):
             self.assertEqual(installed.read_bytes(), hook.read_bytes())
         for command in (ROOT / "commands").glob("*.md"):
             self.assertTrue((self.prefix / "commands" / command.name).is_file())
-        for name in ("policy.md", "project-template.md", "stats.py"):
+        for name in ("policy.md", "project-template.md", "stats.py", "doctor.py", "routing.json"):
             self.assertTrue((self.prefix / "orchestrator" / name).is_file(), name)
+        self.assertEqual(
+            (self.prefix / "orchestrator" / "render_routing.py").read_bytes(),
+            (ROOT / "scripts" / "render_routing.py").read_bytes(),
+        )
+        self.assertIn("orchestrator/render_routing.py", manifest_files(self.prefix))
+        self.assertIn("commands/orch-doctor.md", manifest_files(self.prefix))
         self.assertEqual(
             (self.prefix / "orchestrator" / "docs" / "contracts" / "brief.schema.json").read_bytes(),
             (ROOT / "docs" / "contracts" / "brief.schema.json").read_bytes(),
@@ -796,8 +808,11 @@ class MergeUnitTests(unittest.TestCase):
             (src / "hooks" / ".DS_Store").write_text("junk", encoding="utf-8")
             for name in relevo_install.ORCHESTRATOR_FILES:
                 (src / "orchestrator" / name).write_text("x", encoding="utf-8")
+            (src / "scripts").mkdir()
+            (src / "scripts" / "render_routing.py").write_text("x", encoding="utf-8")
             plan = relevo_install.plan_files(src)
         self.assertIn("orchestrator/docs/sub/a.md", plan)
+        self.assertIn("orchestrator/render_routing.py", plan)
         self.assertIn("hooks/tool", plan)
         self.assertEqual(plan["hooks/tool"][1], 0o755)
         self.assertFalse([rel for rel in plan if ".hidden" in rel or "pycache" in rel or "DS_Store" in rel])

@@ -11,7 +11,7 @@ Orquestador multimodelo para Claude Code: reparte cada tarea entre subagentes ha
 
 ## Qué es
 
-relevo es un conjunto de archivos para [Claude Code](https://code.claude.com/docs/en/overview): una política escrita en lenguaje natural, seis subagentes («workers»), cuatro hooks, una plantilla de permisos y dos comandos. La sesión principal de Claude Code lee la política al arrancar y actúa como **router**: para cada petición decide si hace el trabajo ella misma o se lo pasa a un worker que corre en un modelo más barato o más potente.
+relevo es un conjunto de archivos para [Claude Code](https://code.claude.com/docs/en/overview): una política escrita en lenguaje natural, seis subagentes («workers»), cuatro hooks, una plantilla de permisos y tres comandos. La sesión principal de Claude Code lee la política al arrancar y actúa como **router**: para cada petición decide si hace el trabajo ella misma o se lo pasa a un worker que corre en un modelo más barato o más potente.
 
 Frente a usar un único agente para todo, aporta tres cosas (fuente: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), «Propósito»):
 
@@ -81,8 +81,9 @@ cd relevo
 Después:
 
 1. Reinicia Claude Code y abre una sesión nueva. `/agents` debe listar los 6 workers.
-2. Opcional: ejecuta `/orchestrator-init` en cada proyecto donde quieras reglas a nivel de proyecto (comandos de test/lint/build, rutas sensibles).
-3. Tras usarlo un tiempo, ejecuta `/orch-stats` para ver la telemetría por agente.
+2. Ejecuta `/orch-doctor` para comprobar la instalación. Es de solo lectura: cada comprobación imprime `pass`, `warn` o `fail` con un remedio que nunca aplica por su cuenta.
+3. Opcional: ejecuta `/orchestrator-init` en cada proyecto donde quieras reglas a nivel de proyecto (comandos de test/lint/build, rutas sensibles).
+4. Tras usarlo un tiempo, ejecuta `/orch-stats` para ver la telemetría por agente.
 
 **Pruébalo sin tocar tu configuración.** El instalador escribe bajo `$HOME`, así que apunta `HOME` a un directorio temporal:
 
@@ -105,7 +106,7 @@ El prefijo por defecto es `~/.claude`. No se escribe nada fuera de él.
 | `agents/*.md` (6 workers) | `agents/` | Se copian. Si el nombre choca con un agente ajeno, aborta salvo `--force` |
 | `hooks/*` | `hooks/` | Se copian con modo `0755` |
 | `commands/*.md` | `commands/` | Se copian |
-| `orchestrator/{policy.md,project-template.md,stats.py}` | `orchestrator/` | Se copian |
+| `orchestrator/{policy.md,project-template.md,stats.py,doctor.py,routing.json}`, `scripts/render_routing.py` | `orchestrator/` | Se copian (`doctor.py` reutiliza `render_routing.py` y `routing.json` en su comprobación `routing:sync`) |
 | `docs/**` | `orchestrator/docs/**` | Se copian |
 | `templates/settings.example.json` | `settings.json` | Se **fusiona**, nunca se sobrescribe (ver abajo) |
 | `templates/CLAUDE.md.example` | `CLAUDE.md` | Se añade como un bloque entre `<!-- relevo:begin -->` y `<!-- relevo:end -->`, salvo que el archivo ya tenga una línea `@orchestrator/policy.md` |
@@ -146,11 +147,11 @@ Léelo antes de fiarte de él.
 - **`guard-secrets` es defensa en profundidad, no un sandbox.** Pide confirmación cuando una llamada nombra explícitamente `.env`, claves privadas o credenciales. Según la cabecera del propio hook, no detecta: un grep recursivo sobre un directorio sin nombrar el secreto, la carga implícita (dotenv, `printenv` tras `source`), la ofuscación ni la herramienta `Glob`. También da falsos positivos (nombres de secreto usados como patrón de búsqueda) y deja pasar la llamada si falla internamente.
 - **`block-force-push` tiene huecos conocidos.** No detecta una variable que contenga `git` (`G=git; $G push -f`), un alias de git ni `eval "git push -f"` con el argumento entre comillas. También deja pasar la llamada si falla internamente. Corregirlos sería un cambio de hook aparte. Ver [`SECURITY.md`](SECURITY.md#ai-orchestrator-specific-risks) (en inglés).
 - **`Explore` y `verificador` tienen `Bash`.** «No editar archivos» lo imponen solo sus prompts, no una restricción de herramientas.
-- **Los contadores de presupuesto no se persisten.** El número de llamadas a `arquitecto` y de ciclos de revisión vive solo en el contexto del router. No se ha verificado qué pasa con ellos cuando se compacta una sesión larga (comprobación 6 de [`docs/audit-pending.md`](docs/audit-pending.md)).
+- **Los contadores de presupuesto solo se persisten si el router los escribe.** El número de llamadas a `arquitecto` y de ciclos de revisión vive en el logbook `.claude/work/<tarea>/estado.md`, que el hook `orch-resume` imprime tras compactar o reanudar. Escribir el logbook es texto de política, no se impone.
 - **Los tokens de salida de la telemetría son estimaciones** (caracteres generados dividido entre 4, sin contar el thinking). Los tokens de entrada y de caché salen del transcript.
 - **Se instala a nivel de usuario.** Afecta a todos los proyectos que abras con Claude Code y añade reglas `ask` globales y hooks a tu `settings.json`.
-- **`Explore` sustituye al integrado.** El archivo del worker se llama `Explore` para pisar al agente integrado de Claude Code del mismo nombre. Aún no está confirmado: es la comprobación 1 de [`docs/audit-pending.md`](docs/audit-pending.md) [VERIFICAR].
-- **Varios fallos no están especificados.** Ni la política ni los hooks definen qué pasa con un timeout o una caída de un worker, ni qué devuelve un worker al llegar a `maxTurns`; el router improvisa. `block-force-push` y `guard-secrets` también dan falsos positivos cuando un comando solo contiene el texto que buscan. Las dos copias de la tabla B (`orchestrator/policy.md` y `agents/clasificador.md`) se mantienen sincronizadas a mano. Ver [`docs/failure-modes.md`](docs/failure-modes.md).
+- **`Explore` sustituye al integrado.** El archivo del worker se llama `Explore` para pisar al agente integrado de Claude Code del mismo nombre. Confirmado por los tests end-to-end con Claude Code 2.1.312 (comprobación 1 de [`docs/audit-pending.md`](docs/audit-pending.md)).
+- **Varios fallos no están especificados.** La política no dice qué hace el router cuando un worker agota el tiempo, falla con un error de API o se detiene en `maxTurns`; el router improvisa. Los tests end-to-end muestran qué devuelve Claude Code en esos casos y que no queda línea de telemetría. `block-force-push` y `guard-secrets` también dan falsos positivos cuando un comando solo contiene el texto que buscan. Ver [`docs/failure-modes.md`](docs/failure-modes.md).
 - **Coste.** `arquitecto` y `verificador` corren en opus, que es caro. La política limita su uso, pero no pone tope al gasto.
 - **La documentación técnica está en español.** Este README y los archivos de comunidad están en inglés (con esta versión en español); [`docs/`](docs/INDEX.md) está en español.
 - **No está afiliado ni respaldado por Anthropic.** «Claude» y «Claude Code» son nombres de Anthropic; este es un proyecto independiente.

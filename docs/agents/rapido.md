@@ -42,7 +42,7 @@ Trabajo sin juicio de diseño; haiku a effort low es el más barato. Ver [../dec
 | Sin línea `Riesgo:` | Incumple el contrato | Riesgo mínimo medio (`~/.claude/orchestrator/policy.md:63`) |
 | `OK` con cambios de código | — | Verificación en dos gates (`~/.claude/orchestrator/policy.md:21`) |
 | Necesita archivos fuera del brief | No tiene `AMPLIAR` en su contrato | No especificado |
-| Llega a 15 turnos | Tarea grande | `[VERIFICAR: comportamiento al alcanzar maxTurns]` |
+| Llega a 15 turnos | Tarea grande | Vuelve al router con una nota de límite de turnos y sin `ESTADO`; no se dispara `SubagentStop` y no queda línea en `log.jsonl` (E2E con Claude Code 2.1.312, [../audit-pending.md](../audit-pending.md) #2) |
 
 ## Ejemplo
 Ilustrativo.
