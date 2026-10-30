@@ -10,8 +10,8 @@ Facturación por suscripción Max/Pro: lo que se optimiza es la cuota y la venta
 |---|---|---|---|
 | `clasificador`, `Explore`, `rapido` | haiku | low | 3 / 20 / 15 |
 | `implementador` | sonnet | high | 40 |
-| `arquitecto` | opus | xhigh | 30 |
-| `verificador` | opus | high | 25 |
+| `arquitecto` | opus | xhigh | 45 |
+| `verificador` | opus | high | 35 |
 
 Fuente: `~/.claude/agents/*.md:4-6`. Fable 5.1 no entra en la escalera; opus es el techo (decisión del maintainer). `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` (`~/.claude/settings.json:4`) evita que los subagentes sin `model:` (p. ej. `general-purpose`) hereden opus ("tapar fugas de Opus").
 

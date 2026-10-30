@@ -111,6 +111,6 @@ La tabla B cubre los seis tipos de forma exhaustiva. Los casos sin regla explíc
 
 | Caso | Comportamiento | Fuente |
 |---|---|---|
-| El worker devuelve un reporte sin ESTADO/VEREDICTO reconocible | No especificado; la telemetría lo registra como `SIN_ESTADO` | `~/.claude/hooks/orch-telemetry:48-52` |
+| El worker devuelve un reporte sin ESTADO/VEREDICTO reconocible | No especificado; la telemetría lo registra como `SIN_ESTADO` | `~/.claude/hooks/orch-telemetry:59-63` |
 | `arquitecto` no puede entregar plan | No especificado: su contrato no tiene `ESCALAR` | `~/.claude/agents/arquitecto.md:15` |
 | Timeout, caída del worker o contexto excedido | No especificado | ver [failure-modes.md](failure-modes.md) |
