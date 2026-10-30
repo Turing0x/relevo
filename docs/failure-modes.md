@@ -13,7 +13,7 @@ Este archivo cubre qué falla puede ocurrir en el orquestador, cómo se detecta,
 | Replan repetido | Llamadas a `arquitecto` en la tarea | Segunda llamada: AskUserQuestion; sin permiso, parar y reportar (`~/.claude/orchestrator/policy.md:19`, `:35`) | Autorizar o replantear la tarea |
 | Gate determinista en rojo | Salida de test/lint/build | Vuelve al mismo ejecutor y cuenta como ciclo; nunca `verificador` (`~/.claude/orchestrator/policy.md:47`) | Nada, salvo que se agote el presupuesto |
 | JSON del `clasificador` inválido | El router no puede parsearlo | El router clasifica en línea (`~/.claude/orchestrator/policy.md:10`) | Nada |
-| Reporte de worker sin ESTADO/VEREDICTO | Telemetría `status: SIN_ESTADO` (`~/.claude/hooks/orch-telemetry:48-52`) | No especificado | Si es frecuente, revisar el prompt del agente (`~/.claude/commands/orch-stats.md:10`) |
+| Reporte de worker sin ESTADO/VEREDICTO | Telemetría `status: SIN_ESTADO` (`~/.claude/hooks/orch-telemetry:59-63`), tras releer el transcript hasta 5 veces con 0,5 s (`:65-74`) | No especificado | Si es frecuente, revisar el prompt del agente (`~/.claude/commands/orch-stats.md:10`) |
 | `verificador` sin `Causa` | El router la lee como dudosa | Re-brief al mismo ejecutor (`~/.claude/orchestrator/policy.md:20`) | Nada |
 | `arquitecto` no puede entregar plan | Su contrato no tiene `ESCALAR` (`~/.claude/agents/arquitecto.md:15`) | No especificado | Aportar información o redefinir la tarea |
 | Worker necesita archivos fuera del brief | `AMPLIAR` | Re-brief si sigue en alcance; si no, preguntar (`~/.claude/orchestrator/policy.md:16`) | Aprobar o rechazar la ampliación |

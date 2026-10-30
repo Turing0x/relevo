@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 # SubagentStop: añade una línea por subagente a ~/.claude/orchestrator/log.jsonl
 # (agente, modelo, effort, turnos, tokens, duración, estado). Nunca bloquea: siempre exit 0.
-import json, os, re, sys
+import json, math, os, re, sys, time
 from datetime import datetime
 
 LOG = os.environ.get("ORCH_LOG") or os.path.expanduser("~/.claude/orchestrator/log.jsonl")
 STATUS = re.compile(r"^\W*(ESTADO|VEREDICTO)\W*:\W*([A-Za-z_]{2,})", re.M | re.I)
+# SubagentHandback aún no está volcado al transcript cuando el hook (async) arranca, y
+# last_assistant_message llega vacío: sin estado se relee el transcript unas pocas veces.
+RETRIES = 5
+def retry_delay():
+    # ORCH_TELEMETRY_RETRY_DELAY (segundos) solo puede acortar la espera (tests: 0); inválido → 0.5.
+    try:
+        x = float(os.environ.get("ORCH_TELEMETRY_RETRY_DELAY") or 0.5)
+    except ValueError:
+        return 0.5
+    return min(max(x, 0), 0.5) if math.isfinite(x) else 0.5
+RETRY_DELAY = retry_delay()
 USAGE = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
 
 def ts(s):
@@ -51,13 +62,24 @@ def status_of(msg):
         return st.group(2).upper()
     return "JSON" if (msg or "").lstrip().startswith("{") else "SIN_ESTADO"
 
+def read(path, last_msg):
+    # Sin estado (ni en last_assistant_message ni en el final del transcript) reintenta; en el último
+    # intento el resumen completo (turnos, tokens) se recalcula con lo que haya.
+    for i in range(RETRIES + 1):
+        summary = summarize(path)
+        msg = next((m for m in (last_msg, summary[-1]) if m and STATUS.search(m)), last_msg or summary[-1])
+        status = status_of(msg)
+        if status != "SIN_ESTADO" or i == RETRIES:
+            return summary, status
+        time.sleep(RETRY_DELAY)
+
 def main():
     h = json.load(sys.stdin)
     agent = h.get("agent_type")
     p = h.get("agent_transcript_path")
     if not agent or not p or not os.path.exists(p):
         return  # eventos internos sin agente ni transcript: no aportan señal
-    model, effort, turns, tot, out_est, dur, final = summarize(p)
+    (model, effort, turns, tot, out_est, dur, _), status = read(p, h.get("last_assistant_message"))
     rec = {
         "ts": datetime.now().isoformat(timespec="seconds"),
         "session": h.get("session_id"), "agent_id": h.get("agent_id"),
@@ -66,8 +88,7 @@ def main():
         "in": tot["input_tokens"], "cache_read": tot["cache_read_input_tokens"],
         "cache_write": tot["cache_creation_input_tokens"], "out_est": out_est,
         "dur_s": round(dur) if dur is not None else None,
-        "status": status_of(next((m for m in (h.get("last_assistant_message"), final) if m and STATUS.search(m)),
-                                  h.get("last_assistant_message") or final)),
+        "status": status,
     }
     with open(LOG, "a") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")

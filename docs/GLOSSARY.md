@@ -54,6 +54,6 @@ Este archivo define cada término de la documentación del orquestador. Cada té
 | doctor | Diagnóstico de solo lectura de la instalación: `~/.claude/orchestrator/doctor.py`, lanzado con `/orch-doctor`. Nueve comprobaciones; sale con 1 si alguna falla. Nunca aplica un remedio. | `~/.claude/orchestrator/doctor.py:598-608`, `~/.claude/commands/orch-doctor.md` |
 | comprobación del doctor | Una prueba con id estable (`hooks:registered`, `manifest:drift`, `routing:sync`…), un estado `pass`, `warn` o `fail` y, si no pasa, un remedio que propone al humano. | `~/.claude/orchestrator/doctor.py:598-608` |
 | E2E con modelo falso | Tests del repo que ejecutan Claude Code real contra un servidor local que imita la API de Messages (`ANTHROPIC_BASE_URL`), con respuestas guionizadas, para observar hooks y telemetría sin API key. Opcionales: `make e2e`. | `tests/e2e/` (repo) |
-| `SIN_ESTADO` | Valor de `status` en telemetría cuando el reporte no contiene ESTADO, VEREDICTO ni JSON. | `~/.claude/hooks/orch-telemetry:48-52` |
+| `SIN_ESTADO` | Valor de `status` en telemetría cuando el reporte no contiene ESTADO, VEREDICTO ni JSON. | `~/.claude/hooks/orch-telemetry:59-63` |
 | effort | Nivel de razonamiento del modelo por worker: `low`, `medium`, `high`, `xhigh`, `max`. | `~/.claude/agents/*.md:5` |
 | `maxTurns` | Tope de turnos de un worker por llamada. | `~/.claude/agents/*.md:6` |

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "orch-telemetry → log.jsonl",
-  "description": "Una línea JSON por worker terminado. Fuente: ~/.claude/hooks/orch-telemetry:61-73. No guarda contenido de conversación.",
+  "description": "Una línea JSON por worker terminado. Fuente: ~/.claude/hooks/orch-telemetry:83-94. No guarda contenido de conversación.",
   "type": "object",
   "properties": {
     "ts": {

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- `orch-telemetry`: a worker that ends with `SubagentHandback` was logged as `SIN_ESTADO` because the async hook read the transcript before that line was flushed (and `last_assistant_message` arrives empty). With no status found, the hook now re-reads the transcript up to 5 times, 0.5 s apart (`ORCH_TELEMETRY_RETRY_DELAY` can only shorten the delay; invalid values fall back to 0.5 s), recomputing the whole summary, and still always exits 0.
+
+### Changed
+
+- `maxTurns`: `arquitecto` 30 → 45 and `verificador` 25 → 35 (agents, ADR 0002 and agent cards).
+
 ### Added
 
 - Policy §9 "Relevo de sesión": in long sessions, after a compaction or before closing with work left, the router overwrites `HANDOFF.md` (done, pending, key files, decisions, open questions, §3 budget); a new session reads it before acting. Workers ignore §9.

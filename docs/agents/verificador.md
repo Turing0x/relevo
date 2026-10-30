@@ -1,7 +1,7 @@
 ---
 name: verificador
 summary: Revisa de forma independiente el trabajo de otro ejecutor contra la petición original y devuelve un veredicto.
-model: opus (effort high, maxTurns 25)
+model: opus (effort high, maxTurns 35)
 source: ~/.claude/agents/verificador.md
 ---
 Ficha del worker `verificador` del orquestador. Términos en [../GLOSSARY.md](../GLOSSARY.md). Rutas absolutas desde `~/.claude/`.

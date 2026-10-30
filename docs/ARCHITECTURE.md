@@ -80,7 +80,7 @@ Tarea ilustrativa: "añade validación de email al endpoint de registro" en un p
 | 5 | Router: gate determinista con el comando de test/lint/build del proyecto | — | — | Verde o rojo | `~/.claude/orchestrator/policy.md:47` |
 | 6 | `verificador` (riesgo medio y >1 archivo) | opus, effort high | Petición original literal, criterios, archivos, `base_commit` y `modo`; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos | `~/.claude/orchestrator/policy.md:48-49`, `~/.claude/agents/verificador.md` |
 | 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:66` |
-| 8 | Hook `orch-telemetry` en cada fin de worker | — | Transcript del worker | Una línea en `log.jsonl` | `~/.claude/hooks/orch-telemetry:54-73` |
+| 8 | Hook `orch-telemetry` en cada fin de worker | — | Transcript del worker | Una línea en `log.jsonl` | `~/.claude/hooks/orch-telemetry:76-94` |
 
 Si el paso 6 devuelve `RECHAZADO`, ver [routing.md](routing.md#paso-2-tabla-a-respuestas-de-worker-y-acciones-sensibles). Ejemplos completos en [examples/](examples/implementacion-con-rechazo.md).
 
@@ -96,7 +96,7 @@ La columna "Impuesto por" distingue lo que Claude Code garantiza de lo que depen
 | `clasificador` nunca ejecuta comandos ni edita. | Claude Code (`tools: Read, Grep, Glob`) | `~/.claude/agents/clasificador.md:7` |
 | Nunca se ejecuta un force push ni un borrado remoto de rama vía Bash. | Claude Code: `permissions.deny` + hook `block-force-push` (exit 2) | `~/.claude/settings.json:7-10`, `~/.claude/hooks/block-force-push:40-43` |
 | Siempre se pide confirmación humana antes de una referencia explícita a `.env`, claves o credenciales en Bash, Grep o Read. | Claude Code: hook `guard-secrets` + `Read(**/.env*)`/`Edit(**/.env*)` en `ask` | `~/.claude/hooks/guard-secrets`, `~/.claude/settings.json:51`, `:55` |
-| Se registra una línea de telemetría cuando un worker con nombre y transcript termina con un reporte. No hay línea si se detiene por `maxTurns` o por un error de API (no se dispara `SubagentStop`), ni en `claude -p`, que sale antes de que corra el hook `async` (E2E con Claude Code 2.1.312). | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:81-91`, `~/.claude/hooks/orch-telemetry:58-59` |
+| Se registra una línea de telemetría cuando un worker con nombre y transcript termina con un reporte. No hay línea si se detiene por `maxTurns` o por un error de API (no se dispara `SubagentStop`), ni en `claude -p`, que sale antes de que corra el hook `async` (E2E con Claude Code 2.1.312). | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:81-91`, `~/.claude/hooks/orch-telemetry:80-81` |
 | `Explore`, `verificador` nunca editan archivos. | Solo prompt: ambos tienen `Bash`, que puede escribir | `~/.claude/agents/Explore.md:7`, `:10`; `~/.claude/agents/verificador.md:7`, `:12` |
 | Nunca se lanza `verificador` sobre un gate determinista en rojo. | Solo política | `~/.claude/orchestrator/policy.md:47` |
 | El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:49` |
