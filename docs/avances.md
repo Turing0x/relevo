@@ -1,6 +1,6 @@
 # Avances: de 0.1.0 a 0.2.0 y siguientes
 
-Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, cómo se verificó y qué queda pendiente. Las rutas son relativas a la raíz del repo; las de la instalación, absolutas desde `~/.claude/`. Última actualización: 2026-10-29.
+Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, cómo se verificó y qué queda pendiente. Las rutas son relativas a la raíz del repo; las de la instalación, absolutas desde `~/.claude/`. Última actualización: 2026-10-30.
 
 ## Resumen
 
@@ -8,6 +8,7 @@ Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, 
 - El plan preveía tres releases (0.2.0, 0.3.0 y 0.4.0). Al final las tres fases salieron juntas en **0.2.0**.
 - Después de la release se llevaron al repo dos cambios que solo existían en la instalación global: el §9 "Relevo de sesión" y el modo multi-repo de `/orchestrator-init`. Están en `[Unreleased]` del [CHANGELOG](../CHANGELOG.md).
 - La instalación de `~/.claude` se reinstaló desde el repo. Ahora la gestiona el instalador y `/orch-doctor` da 9 pass, 0 warn, 0 fail.
+- 2026-10-30: `/orch-stats` mostraba la mitad de las llamadas como `SIN_ESTADO` y al `arquitecto` siempre en el tope de turnos. La causa era una carrera en `orch-telemetry`, no los agentes. Se corrigió el hook, se subieron `maxTurns` (`arquitecto` 45, `verificador` 35) y se reclasificó el log histórico (PR #15).
 
 ## Cronología
 
@@ -20,6 +21,8 @@ Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, 
 | 2026-10-29 | [#11](https://github.com/Turing0x/relevo/pull/11) | `5be9faf` | Fase 3: herramientas (ideas 12 y 14) |
 | 2026-10-29 | [#12](https://github.com/Turing0x/relevo/pull/12) | `68471a0` | Release 0.2.0, tag `v0.2.0` y [release en GitHub](https://github.com/Turing0x/relevo/releases/tag/v0.2.0) |
 | 2026-10-29 | [#13](https://github.com/Turing0x/relevo/pull/13) | `c8cdc7e` | §9 "Relevo de sesión" y `/orchestrator-init` multi-repo |
+| 2026-10-29 | [#14](https://github.com/Turing0x/relevo/pull/14) | `8bac2be` | Este registro de avances |
+| 2026-10-30 | [#15](https://github.com/Turing0x/relevo/pull/15) | `0aeaa5d` | `orch-telemetry`: reintento de lectura del transcript; `maxTurns` 45/35 |
 
 Todos los PR se mergearon con squash. El ruleset de `main` pide la aprobación de un code owner y el autor no puede aprobar su propio PR, así que se usó `--admin` (bypass permitido solo vía PR) con el CI en verde.
 
@@ -91,9 +94,54 @@ La instalación global se había hecho a mano antes de existir el instalador y t
 
 Verificación: `make check` en verde y `verificador` independiente APROBADO.
 
+## Telemetría: carrera en `orch-telemetry` y `maxTurns` (PR #15)
+
+### Síntoma
+
+`/orch-stats` del 2026-10-29 (87 llamadas en 30 días):
+
+| agente | n | tope | estados |
+|---|---|---|---|
+| `implementador` | 44 | 8 | SIN_ESTADO:22 OK:21 AMPLIAR:1 |
+| `verificador` | 35 | 7 | SIN_ESTADO:22 APROBADO:9 RECHAZADO:4 |
+| `arquitecto` | 7 | 7 | SIN_ESTADO:4 OK:2 PENDIENTE_APROBACION:1 |
+
+Leído tal cual, sugería que los workers no cumplían el contrato de salida, que el `arquitecto` agotaba siempre `maxTurns` y que RECHAZADO superaba el 30 %.
+
+### Diagnóstico
+
+- Los transcripts de las filas `SIN_ESTADO` sí terminan en una llamada `SubagentHandback` con `ESTADO:` o `VEREDICTO:` en `input.message`, y `summarize()` ya sabía leerla.
+- Al reparsear las 51 filas `SIN_ESTADO` con el mismo hook, 50 dan un estado válido (26 OK, 18 APROBADO, 5 RECHAZADO, 1 PENDIENTE_APROBACION).
+- Causa: el hook es `async` en `SubagentStop`. Cuando el worker termina con `SubagentHandback`, `last_assistant_message` llega vacío y, a veces, el hook lee el transcript antes de que se escriba esa línea. La fila queda como `SIN_ESTADO` aunque el worker sí informó.
+- `tope`: la columna cuenta `turns >= maxTurns`, y `turns` es el número de mensajes del asistente. Las 7 llamadas al `arquitecto` tenían 31-33 turnos con `maxTurns: 30` y terminaron con reporte, así que no se cortaron. Aun así iban siempre en el límite.
+
+### Cambios
+
+- `hooks/orch-telemetry`: si no hay estado ni en `last_assistant_message` ni en el transcript, vuelve a leer el transcript hasta 5 veces (`RETRIES`), esperando `retry_delay()` entre lecturas, y recalcula todo el resumen en la última. `retry_delay()` lee `ORCH_TELEMETRY_RETRY_DELAY` dentro de un `try`: un valor negativo pasa a 0; un valor no numérico, no finito o mayor de 0.5 se queda en 0.5 s. La espera extra máxima es de unos 2,5 s y el hook sigue saliendo siempre con 0. Un reporte JSON del `clasificador` cuenta como estado y no reintenta.
+- `tests/test_orch_telemetry.py`: un `sitecustomize` inyectado por `PYTHONPATH` sustituye `time.sleep`; registra cada espera sin dormir y puede añadir la línea `SubagentHandback` al transcript en la llamada N. Tests nuevos:
+  - el volcado tardío se recupera;
+  - si el estado no aparece nunca: exactamente 5 esperas y `SIN_ESTADO`;
+  - con estado ya presente: 0 esperas;
+  - con `-1`, `abc`, `nan`, `inf`, `1e308` y `1e6`: rc 0, stderr vacío, 1 línea en el log y cada espera igual a 0 (para `-1`) o 0.5.
+- `agents/arquitecto.md` `maxTurns` 30 → 45 y `agents/verificador.md` 25 → 35, con fichas de agente, ADR 0002, `ARCHITECTURE`, `GLOSSARY`, `routing`, `failure-modes`, ADR 0006, el schema de telemetría (citas `orch-telemetry:N-M` desplazadas) y CHANGELOG `[Unreleased]`.
+
+### Verificación
+
+- Gate determinista: `make test`, `make lint`, `make docs-check` y `make typecheck` en verde (288 tests OK, 10 skipped, 3 expected failures).
+- `verificador` ciclo 1: RECHAZADO (implementación). Con `ORCH_TELEMETRY_RETRY_DELAY=abc`, el `ValueError` saltaba al importar el módulo, fuera del `try`, y el hook salía con rc 1. Con `-1`, `nan` o `inf`, `time.sleep` fallaba y la fila se perdía. Con `1e6`, el hook podía quedarse colgado.
+- `verificador` ciclo 2 (recheck): APROBADO. Quedó una advertencia: el test de valores inválidos dormía de verdad unos 13 s. Se corrigió antes del commit usando el mismo shim.
+- CI del PR: 16 checks en verde. Merge squash con `--admin` (etiqueta `security-sensitive`, revisión de code owner requerida).
+
+### Datos e instalación
+
+- Reclasificación de una sola vez de `~/.claude/orchestrator/log.jsonl`: las 50 filas `SIN_ESTADO` recuperables se reescribieron con su estado y `"backfilled": true`. Copia previa en `~/.claude/orchestrator/log.jsonl.bak`. Queda 1 `SIN_ESTADO` real (`Explore`).
+- `/orch-stats` después: `implementador` OK:43 AMPLIAR:1; `verificador` APROBADO:26 RECHAZADO:9 (25 %); `arquitecto` OK:5 PENDIENTE_APROBACION:2. `tope`: 8, 2 y 0.
+- Antes del merge el hook se copió a mano a `~/.claude/hooks/` (el anterior quedó en `~/.claude/orchestrator/orch-telemetry.bak`). Tras el merge se reinstaló desde `main` (`0aeaa5d`) sin `--force`: solo se actualizaron `docs/INDEX.md` y `docs/audit-pending.md` y se creó `docs/avances.md`. `/orch-doctor`: 9 pass, 0 warn, 0 fail.
+- Descartado: añadir a `implementador` un paso de autocomprobación de criterios para bajar RECHAZADO. Con los datos corregidos, RECHAZADO es el 25 %, por debajo del umbral del 30 % de `/orch-stats`.
+
 ## Instalación en `~/.claude`
 
-Se reinstaló el 2026-10-29 desde `main` (`c8cdc7e`):
+Última reinstalación: 2026-10-30 desde `main` (`0aeaa5d`), ver la sección anterior. La primera fue el 2026-10-29 desde `main` (`c8cdc7e`):
 
 ```bash
 .venv/bin/python scripts/relevo_install.py install --force --pin-backup
@@ -128,7 +176,9 @@ Estado de los gates en `main` (`c8cdc7e`): 284 tests OK (10 skipped, 3 expected 
 
 | Tema | Detalle |
 |---|---|
-| Release 0.2.1 | `[Unreleased]` ya contiene §9 y `/orchestrator-init` multi-repo |
+| Release 0.2.1 | `[Unreleased]` ya contiene §9, `/orchestrator-init` multi-repo, el reintento de `orch-telemetry` y `maxTurns` 45/35 |
+| Copias locales | `~/.claude/orchestrator/log.jsonl.bak` y `~/.claude/orchestrator/orch-telemetry.bak` se pueden borrar cuando `/orch-stats` lleve unos días sin `SIN_ESTADO` nuevos |
+| Vigilar `SIN_ESTADO` | Si reaparece con el reintento, los 2,5 s no bastan: valorar leer el estado del payload de `SubagentStop` si Claude Code llega a incluir el handback |
 | `/orch-doctor` en raíces multi-repo | `doctor.py` da por hecho una raíz git (`gitignore:work`, `claude-md:import`) y puede avisar sin motivo en una raíz multi-repo sin git |
 | Dependabot | PR [#9](https://github.com/Turing0x/relevo/pull/9) (python-dev-tools) y [#10](https://github.com/Turing0x/relevo/pull/10) (github-actions) abiertos |
 | audit-pending | #5 a medias (timeout de red e interrupción por el usuario) y #7 (clasificación en línea con opus frente a `clasificador` con otro modelo), a comprobar a mano |
