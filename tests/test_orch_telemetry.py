@@ -110,9 +110,9 @@ class TelemetryTests(unittest.TestCase):
             check=False,
         )
 
-    def payload(self, last_message: str | None = "ESTADO: OK") -> dict[str, Any]:
+    def payload(self, last_message: str | None = "ESTADO: OK", agent: str = "rapido") -> dict[str, Any]:
         return {
-            "agent_type": "rapido",
+            "agent_type": agent,
             "agent_id": "agent-1",
             "session_id": "session-1",
             "cwd": str(self.tmp),
@@ -239,6 +239,78 @@ class TelemetryTests(unittest.TestCase):
         result = self.run_hook(self.payload(), log=self.tmp / "no-such-dir" / "log.jsonl")
         self.assertEqual(result.returncode, 0)
         self.assertIn("orch-telemetry", result.stderr)
+
+    def verifier_record(self, message: str) -> dict[str, Any]:
+        write_transcript(self.transcript)
+        self.run_hook(self.payload(message, agent="verificador"))
+        return self.records()[-1]
+
+    def test_verifier_level_and_reason_are_recorded(self) -> None:
+        rec = self.verifier_record("VEREDICTO: APROBADO\nNivel: 1 (tamano)")
+        self.assertEqual((rec["status"], rec["nivel"], rec["motivo"]), ("APROBADO", "1", "tamano"))
+
+    def test_verifier_recheck_level_has_no_reason(self) -> None:
+        rec = self.verifier_record("VEREDICTO: APROBADO\nNivel: recheck")
+        self.assertEqual((rec["nivel"], rec["motivo"]), ("recheck", None))
+
+    def test_verifier_without_level_line_still_writes_the_record(self) -> None:
+        rec = self.verifier_record("VEREDICTO: APROBADO")
+        self.assertEqual((rec["status"], rec["nivel"], rec["motivo"]), ("APROBADO", None, None))
+
+    def test_nivel_line_is_strict_about_shape(self) -> None:
+        for message, nivel, motivo in (
+            ("Nivel:\n2 cosas", None, None),
+            ("Nivel: 1.5", None, None),
+            ("Nivel: <1|2> (x)", None, None),
+            ("NIVEL: 1", "1", None),
+            ("**Nivel: 2** (riesgo-3)", "2", "riesgo-3"),
+            ("Nivel: 2 (`riesgo-3`)", "2", "riesgo-3"),
+            ("**Nivel:** 2 (riesgo-3)", "2", "riesgo-3"),
+            ("**Nivel**: 2 (riesgo-3)", "2", "riesgo-3"),
+            ("**Nivel:** recheck", "recheck", None),
+            ("Nivel: 1-2", None, None),
+        ):
+            with self.subTest(message=message):
+                rec = self.verifier_record(f"VEREDICTO: APROBADO\n{message}")
+                self.assertEqual((rec["nivel"], rec["motivo"]), (nivel, motivo))
+
+    def test_verifier_free_text_reason_is_never_stored(self) -> None:
+        rec = self.verifier_record("VEREDICTO: APROBADO\nNivel: 2 (texto libre con espacios)")
+        self.assertEqual((rec["nivel"], rec["motivo"]), ("2", None))
+
+    def test_other_agents_get_no_level_keys(self) -> None:
+        write_transcript(self.transcript)
+        self.run_hook(self.payload("ESTADO: OK\nNivel: 1 (x)"))
+        rec = self.records()[0]
+        self.assertNotIn("nivel", rec)
+        self.assertNotIn("motivo", rec)
+
+    def test_level_recovered_when_handback_is_flushed_late(self) -> None:
+        write_transcript(self.transcript, handback=False)
+        block = {
+            "type": "tool_use",
+            "id": "t1",
+            "name": "SubagentHandback",
+            "input": {"message": "VEREDICTO: APROBADO\nNivel: 1 (tamano)"},
+        }
+        line = json.dumps(assistant("m2", "2026-10-22T10:00:42.000Z", {"input_tokens": 20}, [block])) + "\n"
+        self.sleep_shim(append_on_call=2, line=line)
+        self.run_hook(self.payload("", agent="verificador"))
+        rec = self.records()[0]
+        self.assertEqual((rec["status"], rec["nivel"], rec["motivo"]), ("APROBADO", "1", "tamano"))
+
+    def test_verifier_record_matches_schema(self) -> None:
+        try:
+            jsonschema = importlib.import_module("jsonschema")
+        except ImportError:
+            self.skipTest("jsonschema not installed")
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        validator = jsonschema.Draft202012Validator(schema)
+        for message in ("VEREDICTO: APROBADO\nNivel: 1 (tamano)", "VEREDICTO: APROBADO"):
+            with self.subTest(message=message):
+                if self.log.exists():
+                    self.log.unlink()
+                validator.validate(self.verifier_record(message))
 
     def test_record_matches_schema(self) -> None:
         try:

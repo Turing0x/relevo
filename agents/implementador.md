@@ -2,7 +2,7 @@
 name: implementador
 description: Implementación acotada (feature/fix de 1-5 archivos con alcance claro). Modelo de código equilibrado.
 model: sonnet
-effort: high
+effort: medium
 maxTurns: 40
 disallowedTools: Agent
 ---

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # SubagentStop: añade una línea por subagente a ~/.claude/orchestrator/log.jsonl
-# (agente, modelo, effort, turnos, tokens, duración, estado). Nunca bloquea: siempre exit 0.
+# (agente, modelo, effort, turnos, tokens, duración, estado, nivel y motivo del verificador). Nunca bloquea: siempre exit 0.
 import json, math, os, re, sys, time
 from datetime import datetime
 
 LOG = os.environ.get("ORCH_LOG") or os.path.expanduser("~/.claude/orchestrator/log.jsonl")
 STATUS = re.compile(r"^\W*(ESTADO|VEREDICTO)\W*:\W*([A-Za-z_]{2,})", re.M | re.I)
+# Línea `Nivel:` del verificador. Solo se guarda un slug: el log no lleva texto libre.
+NIVEL = re.compile(r"^\W*(?i:Nivel)[*`]*[^\S\n]*:[*`]*[^\S\n]*[*`]*(1|2|recheck)\b(?![.\d|-])[*`]*(?:[^\S\n]*\(`?([a-z0-9-]{1,30})`?\))?", re.M)
 # SubagentHandback aún no está volcado al transcript cuando el hook (async) arranca, y
 # last_assistant_message llega vacío: sin estado se relee el transcript unas pocas veces.
 RETRIES = 5
@@ -62,6 +64,10 @@ def status_of(msg):
         return st.group(2).upper()
     return "JSON" if (msg or "").lstrip().startswith("{") else "SIN_ESTADO"
 
+def nivel_of(msg):
+    found = NIVEL.findall(msg or "")
+    return (found[-1][0], found[-1][1] or None) if found else (None, None)
+
 def read(path, last_msg):
     # Sin estado (ni en last_assistant_message ni en el final del transcript) reintenta; en el último
     # intento el resumen completo (turnos, tokens) se recalcula con lo que haya.
@@ -70,7 +76,7 @@ def read(path, last_msg):
         msg = next((m for m in (last_msg, summary[-1]) if m and STATUS.search(m)), last_msg or summary[-1])
         status = status_of(msg)
         if status != "SIN_ESTADO" or i == RETRIES:
-            return summary, status
+            return summary, status, msg
         time.sleep(RETRY_DELAY)
 
 def main():
@@ -79,7 +85,7 @@ def main():
     p = h.get("agent_transcript_path")
     if not agent or not p or not os.path.exists(p):
         return  # eventos internos sin agente ni transcript: no aportan señal
-    (model, effort, turns, tot, out_est, dur, _), status = read(p, h.get("last_assistant_message"))
+    (model, effort, turns, tot, out_est, dur, _), status, msg = read(p, h.get("last_assistant_message"))
     rec = {
         "ts": datetime.now().isoformat(timespec="seconds"),
         "session": h.get("session_id"), "agent_id": h.get("agent_id"),
@@ -90,6 +96,8 @@ def main():
         "dur_s": round(dur) if dur is not None else None,
         "status": status,
     }
+    if agent == "verificador":
+        rec["nivel"], rec["motivo"] = nivel_of(msg)
     with open(LOG, "a") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 

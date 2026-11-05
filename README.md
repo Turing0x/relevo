@@ -51,7 +51,7 @@ flowchart TD
     E & RA & I -->|"ESTADO report"| R
     R -->|"code finished"| G1["deterministic gate: test/lint/build"]
     G1 -->|red| R
-    G1 -->|"green and risk medium+ or >1 file"| V["verificador · opus"]
+    G1 -->|"green, level 1 or 2"| V["verificador · opus"]
     V -->|"VEREDICTO + Causa"| R
     R -->|"final consolidation"| U
     H1[[block-force-push]] -.blocks.-> R & RA & I & A & V
@@ -131,7 +131,7 @@ Your other settings keys are never touched, and the merge is idempotent. Before 
 3. Table B: `implementacion` with 3 files goes to `implementador`.
 4. `implementador` gets a self-contained brief (no chat history) and returns a short report that starts with `ESTADO: OK`.
 5. The router runs the deterministic gate: the project's test/lint/build.
-6. Because risk is medium and more than one file changed, a `verificador` reviews with a clean context. It receives the original request, the acceptance criteria and the file list, never the implementer's reasoning.
+6. Because risk is medium and the diff is small, a `verificador` does a focused review (level 1) with a clean context. It receives the original request, the acceptance criteria, the file list and the gate result, never the implementer's reasoning.
 7. `APROBADO` leads to a final summary of at most 4 lines: gates, files changed, pending approvals, route used.
 8. In the background, `orch-telemetry` appends one line to `log.jsonl` each time a worker finishes.
 

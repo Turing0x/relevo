@@ -18,14 +18,14 @@ El router calcula el riesgo final como el máximo entre el `clasificador`, su pr
 
 | Elemento | Qué cubre | Riesgo | Fuente |
 |---|---|---|---|
-| 1 | Datos o efectos irreversibles: migraciones/DB, borrado o cambio de datos guardados, formato persistido, borrado masivo, pagos, envío de mensajes/posts | alto | `~/.claude/orchestrator/policy.md:57` |
-| 2 | Seguridad: auth, permisos, secretos/.env/credenciales, guardas, sandbox | alto | `~/.claude/orchestrator/policy.md:58` |
-| 3 | Contratos consumidos por otros: API pública, flags de CLI, formatos de config, prompts replicados, código compartido usado por comportamiento no pedido | alto | `~/.claude/orchestrator/policy.md:59` |
-| 4 | Concurrencia: locks, condiciones de carrera, orden asíncrono | alto | `~/.claude/orchestrator/policy.md:60` |
-| 5 | Entrega/entorno/dependencias: instaladores, release, CI, infra/deploy, git push/force, dependencias | alto | `~/.claude/orchestrator/policy.md:61` |
-| 6 | Ningún test detectaría una regresión | mínimo medio | `~/.claude/orchestrator/policy.md:62` |
+| 1 | Datos o efectos irreversibles: migraciones/DB, borrado o cambio de datos guardados, formato persistido, borrado masivo, pagos, envío de mensajes/posts | alto | `~/.claude/orchestrator/policy.md:61` |
+| 2 | Seguridad: auth, permisos, secretos/.env/credenciales, guardas, sandbox | alto | `~/.claude/orchestrator/policy.md:62` |
+| 3 | Contratos consumidos por otros: API pública, flags de CLI, formatos de config, prompts replicados, código compartido usado por comportamiento no pedido | alto | `~/.claude/orchestrator/policy.md:63` |
+| 4 | Concurrencia: locks, condiciones de carrera, orden asíncrono | alto | `~/.claude/orchestrator/policy.md:64` |
+| 5 | Entrega/entorno/dependencias: instaladores, release, CI, infra/deploy, git push/force, dependencias | alto | `~/.claude/orchestrator/policy.md:65` |
+| 6 | Ningún test detectaría una regresión | mínimo medio | `~/.claude/orchestrator/policy.md:66` |
 
-`implementador`, `rapido` y el trabajo en línea con cambios cierran con `Riesgo: <N>[,<N>] (<motivo>) | ninguno`. Antes de escribir `ninguno` se comprueba si el diff toca código compartido que usa un comportamiento no pedido; si es así, cuenta como elemento 3. Sin línea, el riesgo es medio como mínimo (`~/.claude/orchestrator/policy.md:63`). El `clasificador` tiene la misma lista con los mismos números (`~/.claude/agents/clasificador.md:25-31`); `tests/test_repo_consistency.py` comprueba que coinciden.
+`implementador`, `rapido` y el trabajo en línea con cambios cierran con `Riesgo: <N>[,<N>] (<motivo>) | ninguno`. Antes de escribir `ninguno` se comprueba si el diff toca código compartido que usa un comportamiento no pedido; si es así, cuenta como elemento 3. Sin línea, el riesgo es medio como mínimo (`~/.claude/orchestrator/policy.md:67`). El `clasificador` tiene la misma lista con los mismos números (`~/.claude/agents/clasificador.md:25-31`); `tests/test_repo_consistency.py` comprueba que coinciden.
 
 ## Paso 2: tabla A (respuestas de worker y acciones sensibles)
 
@@ -45,7 +45,7 @@ La tabla A tiene prioridad sobre la tabla B (`~/.claude/orchestrator/policy.md:1
 | `OK` de `Explore`, o de `rapido` sin cambios de código | Seguir en línea con su resultado | router | sesión | `~/.claude/orchestrator/policy.md:21` |
 | `OK` de `arquitecto` | Un `implementador` por tramo del plan | `implementador` | sonnet | `~/.claude/orchestrator/policy.md:21` |
 | Código terminado (worker o en línea) | Verificación en dos gates | ver abajo | — | `~/.claude/orchestrator/policy.md:21` |
-| Verificación superada | Consolidación final | router | sesión | `~/.claude/orchestrator/policy.md:21`, `:66` |
+| Verificación superada | Consolidación final | router | sesión | `~/.claude/orchestrator/policy.md:21`, `:70` |
 
 ## Paso 3: tabla B (ruta inicial por tipo)
 
@@ -71,14 +71,17 @@ Lo sensible no es un tipo: el `clasificador` lo marca en `necesita_aprobacion` y
 |---|---|---|---|---|
 | Hay código terminado | Gate determinista: test/lint/build de `.claude/orchestrator.md` o del stack | router | sesión | `~/.claude/orchestrator/policy.md:47` |
 | Gate determinista en rojo | Vuelve al mismo ejecutor; cuenta como ciclo; nunca `verificador` sobre rojo | mismo ejecutor | — | `~/.claude/orchestrator/policy.md:47` |
-| Gate verde y (riesgo medio o alto, o más de 1 archivo) | Verificación independiente | `verificador` | opus | `~/.claude/orchestrator/policy.md:48` |
-| Gate verde, riesgo bajo y 1 archivo | Sin `verificador` | — | — | `~/.claude/orchestrator/policy.md:48` (condición inversa) |
+| Gate verde y riesgo final alto, salida de `arquitecto`, replan, ruta obligatoria o tarea `revision` | Nivel 2: revisión completa | `verificador` | opus | `~/.claude/orchestrator/policy.md:48` |
+| Gate verde, riesgo final bajo y sin cambio de comportamiento o ≤50 líneas de producción (nunca docs que actúan como código) cubiertas por test | Nivel 0: sin `verificador`; el router lee el diff y lo consta en §7 | — | — | `~/.claude/orchestrator/policy.md:49`, `:70` |
+| Gate verde, ≤200 líneas y ≤5 archivos de producción, riesgo no alto | Nivel 1: diff, criterios, llamadores directos | `verificador` | opus | `~/.claude/orchestrator/policy.md:50` |
+| Gate verde, >200 líneas o >5 archivos de producción | Nivel 2 | `verificador` | opus | `~/.claude/orchestrator/policy.md:51` |
+| Multitramo | Gate 1 por tramo; `verificador` solo en tramos de riesgo alto (el último lo cubre la final); nivel 2 al final sobre el diff completo. Sin commit por tramo, `base_commit` es el de la tarea y el foco lo da `archivos` | `verificador` | opus | `~/.claude/orchestrator/policy.md:52` |
 | 2º ciclo tras `RECHAZADO` con `Causa: implementación` o dudosa | `verificador` en `modo: recheck` con `recheck_findings`: revisa solo esos; un hallazgo nuevo es advertencia y no consume ciclo | `verificador` | opus | `~/.claude/orchestrator/policy.md:36` |
 | 2º ciclo tras replan | Revisión completa | `verificador` | opus | `~/.claude/orchestrator/policy.md:36` |
-| Antes de la consolidación final | Comprobación del router: re-ejecuta 1 comando reportado y abre 1 cita `archivo:línea` de `Explore`. Comando distinto → gate determinista en rojo; cita distinta → `Explore` insuficiente | router | sesión | `~/.claude/orchestrator/policy.md:50` |
-| La config de proyecto marca "verificador obligatorio en" esas rutas | `verificador` aunque no se cumpla lo anterior | `verificador` | opus | `~/.claude/orchestrator/project-template.md`, `~/.claude/orchestrator/policy.md:69` |
+| Antes de la consolidación final | Comprobación del router: re-ejecuta 1 comando reportado y abre 1 cita `archivo:línea` de `Explore`. Se omite el comando si el router ya lo ejecutó sobre el mismo estado. Comando distinto → gate determinista en rojo; cita distinta → `Explore` insuficiente | router | sesión | `~/.claude/orchestrator/policy.md:54` |
+| La config de proyecto marca "verificador obligatorio en" esas rutas | Nivel 2: `verificador` aunque no se cumpla lo anterior | `verificador` | opus | `~/.claude/orchestrator/project-template.md`, `~/.claude/orchestrator/policy.md:73` |
 
-El `verificador` se lanza con contexto limpio aunque quien implementó fuera opus (`~/.claude/orchestrator/policy.md:48`). Recibe `base_commit`: solo es bloqueante un defecto causado por el cambio que no se reproduce en la base, y solo un bloqueante produce `RECHAZADO` (`~/.claude/orchestrator/policy.md:49`, `~/.claude/agents/verificador.md:13-15`). Ver [decisions/0009-riesgo-declarado-y-recheck.md](decisions/0009-riesgo-declarado-y-recheck.md). Ver [decisions/0004-verificacion-dos-gates.md](decisions/0004-verificacion-dos-gates.md).
+El `verificador` se lanza con contexto limpio aunque quien implementó fuera opus (`~/.claude/orchestrator/policy.md:48`). Recibe `base_commit`, `nivel` con `motivo` y el resultado del gate 1 (no repite la suite): solo es bloqueante un defecto causado por el cambio que no se reproduce en la base, y solo un bloqueante produce `RECHAZADO` (`~/.claude/orchestrator/policy.md:53`, `~/.claude/agents/verificador.md:13-15`). Ver [decisions/0009-riesgo-declarado-y-recheck.md](decisions/0009-riesgo-declarado-y-recheck.md). Ver [decisions/0004-verificacion-dos-gates.md](decisions/0004-verificacion-dos-gates.md).
 
 ## Escalado entre modelos
 
@@ -111,6 +114,6 @@ La tabla B cubre los seis tipos de forma exhaustiva. Los casos sin regla explíc
 
 | Caso | Comportamiento | Fuente |
 |---|---|---|
-| El worker devuelve un reporte sin ESTADO/VEREDICTO reconocible | No especificado; la telemetría lo registra como `SIN_ESTADO` | `~/.claude/hooks/orch-telemetry:59-63` |
+| El worker devuelve un reporte sin ESTADO/VEREDICTO reconocible | No especificado; la telemetría lo registra como `SIN_ESTADO` | `~/.claude/hooks/orch-telemetry:61-65` |
 | `arquitecto` no puede entregar plan | No especificado: su contrato no tiene `ESCALAR` | `~/.claude/agents/arquitecto.md:15` |
 | Timeout, caída del worker o contexto excedido | No especificado | ver [failure-modes.md](failure-modes.md) |

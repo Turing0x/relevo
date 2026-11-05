@@ -2,7 +2,7 @@
 name: arquitecto
 description: Arquitectura, diseño multi-módulo y bugs difíciles (causa raíz no obvia). Razonamiento fuerte; caro, usar solo si la ruta lo exige.
 model: opus
-effort: xhigh
+effort: medium
 maxTurns: 45
 disallowedTools: Agent
 ---
