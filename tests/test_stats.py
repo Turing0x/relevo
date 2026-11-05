@@ -131,6 +131,54 @@ class StatsTests(unittest.TestCase):
             with self.subTest(arg=arg):
                 self.assertIn(HEADER.format(days=30, n=1), self.run_stats(arg))
 
+    def test_duration_is_the_median(self) -> None:
+        self.write_log([self.record(turns=n, dur_s=d) for n, d in ((1, 20), (2, 20), (3, 37754))])
+        self.assertEqual(self.row(self.run_stats(), "rapido")[7], "20")
+
+    def test_duration_median_of_even_count_and_of_nothing(self) -> None:
+        self.write_log([self.record(turns=1, dur_s=10), self.record(turns=2, dur_s=20)])
+        self.assertEqual(self.row(self.run_stats(), "rapido")[7], "15")
+        self.write_log([self.record(turns=1, dur_s=None), self.record(turns=2, dur_s="x")])
+        self.assertEqual(self.row(self.run_stats(), "rapido")[7], "0")
+
+    def test_header_names_the_median_column(self) -> None:
+        self.write_log([self.record()])
+        self.assertIn("seg.med", self.run_stats())
+
+    def test_level_block_counts_levels_rejections_and_reasons(self) -> None:
+        self.write_log(
+            [
+                self.record("verificador", turns=1, nivel="1", motivo="tamano", status="APROBADO", dur_s=100),
+                self.record("verificador", turns=2, nivel="1", motivo="tamano", status="RECHAZADO", dur_s=200),
+                self.record("verificador", turns=3, nivel="2", motivo="riesgo-3", status="APROBADO"),
+                self.record("verificador", turns=4, status="APROBADO"),
+            ]
+        )
+        output = self.run_stats()
+        self.assertIn("Por nivel (verificador", output)
+        level_1 = next(x for x in output.splitlines() if x.startswith("  1 "))
+        self.assertIn("n=2", level_1)
+        self.assertIn("seg.med=150", level_1)
+        self.assertIn("RECHAZADO:1", level_1)
+        self.assertIn("tamano:2", level_1)
+        self.assertIn("riesgo-3:1", next(x for x in output.splitlines() if x.startswith("  2 ")))
+        self.assertIn("n=1", next(x for x in output.splitlines() if x.startswith("  ? ")))
+
+    def test_no_level_block_without_levels(self) -> None:
+        self.write_log([self.record("verificador", turns=1), self.record(turns=2, nivel="1")])
+        self.assertNotIn("Por nivel", self.run_stats())
+
+    def test_non_string_level_does_not_break(self) -> None:
+        self.write_log(
+            [
+                self.record("verificador", turns=1, nivel="1", motivo=["x"]),
+                self.record("verificador", turns=2, nivel=7, motivo={"a": 1}),
+            ]
+        )
+        output = self.run_stats()
+        self.assertIn("Por nivel", output)
+        self.assertIn("n=1", next(x for x in output.splitlines() if x.startswith("  ? ")))
+
 
 if __name__ == "__main__":
     unittest.main()

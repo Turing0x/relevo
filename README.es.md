@@ -49,7 +49,7 @@ flowchart TD
     E & RA & I -->|reporte ESTADO| R
     R -->|código terminado| G1[gate determinista: test/lint/build]
     G1 -->|rojo| R
-    G1 -->|verde y riesgo medio+ o >1 archivo| V[verificador · opus]
+    G1 -->|verde, nivel 1 o 2| V[verificador · opus]
     V -->|VEREDICTO + Causa| R
     R -->|consolidación final| U
     H1[[block-force-push]] -.bloquea.-> R & RA & I & A & V
@@ -129,7 +129,7 @@ El resto de claves de tu configuración no se toca, y la fusión es idempotente.
 3. Tabla B: `implementacion` con 3 archivos va a `implementador`.
 4. `implementador` recibe un brief autocontenido (sin historial de chat) y devuelve un reporte corto que empieza por `ESTADO: OK`.
 5. El router ejecuta el gate determinista: test/lint/build del proyecto.
-6. Como el riesgo es medio y cambió más de un archivo, un `verificador` revisa con contexto limpio. Recibe la petición original, los criterios de aceptación y la lista de archivos, nunca el razonamiento del implementador.
+6. Como el riesgo es medio y el diff es pequeño, un `verificador` hace una revisión de foco (nivel 1) con contexto limpio. Recibe la petición original, los criterios de aceptación, la lista de archivos y el resultado del gate, nunca el razonamiento del implementador.
 7. `APROBADO` lleva a un resumen final de máximo 4 líneas: gates, archivos cambiados, pendientes de aprobación y ruta usada.
 8. En segundo plano, `orch-telemetry` añade una línea a `log.jsonl` cada vez que termina un worker.
 

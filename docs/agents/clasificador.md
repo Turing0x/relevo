@@ -54,4 +54,4 @@ Output:
 
 ## Código
 - `~/.claude/agents/clasificador.md`
-- `~/.claude/orchestrator/policy.md:9-11`, `:23-31`, `:56-63`
+- `~/.claude/orchestrator/policy.md:9-11`, `:23-31`, `:60-67`

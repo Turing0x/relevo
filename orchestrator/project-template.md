@@ -14,6 +14,6 @@
 - max_ciclos_verificacion: 2
 
 ## Reglas extra
-- verificador obligatorio en: `<globs o "todo cambio">`
+- verificador obligatorio en: `<globs o "todo cambio">` (siempre nivel 2)
 - prohibido: `<acciones>`
 - contexto clave: `<stack, convenciones>`

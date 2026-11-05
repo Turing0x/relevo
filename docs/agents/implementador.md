@@ -1,7 +1,7 @@
 ---
 name: implementador
 summary: Implementa features o fixes acotados de 1-5 archivos según un brief con criterios de aceptación.
-model: sonnet (effort high, maxTurns 40)
+model: sonnet (effort medium, maxTurns 40)
 source: ~/.claude/agents/implementador.md
 ---
 Ficha del worker `implementador` del orquestador. Términos en [../GLOSSARY.md](../GLOSSARY.md). Rutas absolutas desde `~/.claude/`.
@@ -29,7 +29,7 @@ Texto de ≤8 líneas (`~/.claude/agents/implementador.md:15-21`):
 - `Archivos:`
 - `Verificación: <comando> → <resultado>`
 - `Pendientes:`
-- `Riesgo: <N>[,<N>] (<motivo>) | ninguno`: elementos de la lista de alto riesgo que toca el diff. Antes de `ninguno` comprueba si toca código compartido usado por comportamiento no pedido (= 3) (`:14`, `:20`; `~/.claude/orchestrator/policy.md:56-63`). Entra en el riesgo final (`~/.claude/orchestrator/policy.md:11`).
+- `Riesgo: <N>[,<N>] (<motivo>) | ninguno`: elementos de la lista de alto riesgo que toca el diff. Antes de `ninguno` comprueba si toca código compartido usado por comportamiento no pedido (= 3) (`:14`, `:20`; `~/.claude/orchestrator/policy.md:60-67`). Entra en el riesgo final (`~/.claude/orchestrator/policy.md:11`).
 - Detalle largo en `.claude/work/<tarea>.md`.
 
 Schema: [../contracts/implementador-output.schema.json](../contracts/implementador-output.schema.json).
@@ -40,7 +40,7 @@ Todas las tools salvo `Agent` (`~/.claude/agents/implementador.md:7`).
 **Destructivo posible:** edita, crea y puede borrar archivos con `Write`, `Edit` y `Bash`. Lo mitigan los permisos `ask`/`deny` de `~/.claude/settings.json`, los `Edit(<ruta>)` de la config de proyecto en `.claude/settings.json` del repo, y los hooks `block-force-push` y `guard-secrets`.
 
 ## Por qué este modelo
-Sonnet es el modelo de código equilibrado; effort high porque la prioridad es calidad sobre coste. Ver [../decisions/0002-modelo-por-rol.md](../decisions/0002-modelo-por-rol.md).
+Sonnet es el modelo de código equilibrado; effort medium: tope de todo worker (ADR 0012). Ver [../decisions/0002-modelo-por-rol.md](../decisions/0002-modelo-por-rol.md).
 
 ## Modos de fallo
 | Síntoma | Causa probable | Respuesta del orquestador |
@@ -48,8 +48,8 @@ Sonnet es el modelo de código equilibrado; effort high porque la prioridad es c
 | `ESCALAR` | Hace falta diseño | Replan con `arquitecto`, o AskUserQuestion si ya se usó (`~/.claude/orchestrator/policy.md:19`) |
 | `AMPLIAR` | Brief incompleto | Re-brief si sigue en alcance; si no, preguntar (`~/.claude/orchestrator/policy.md:16`) |
 | Gate determinista en rojo | Bug o test roto | Re-brief al mismo ejecutor; cuenta como ciclo (`~/.claude/orchestrator/policy.md:47`) |
-| Declara un elemento de riesgo que el clasificador no vio | El diff real toca más de lo previsto | El riesgo final sube; si llega a medio, `verificador` (`~/.claude/orchestrator/policy.md:11`, `:48`) |
-| Sin línea `Riesgo:` | Incumple el contrato | Riesgo mínimo medio (`~/.claude/orchestrator/policy.md:63`) |
+| Declara un elemento de riesgo que el clasificador no vio | El diff real toca más de lo previsto | El riesgo final sube; si llega a medio, como mínimo nivel 1 de `verificador` (`~/.claude/orchestrator/policy.md:11`, `:48`) |
+| Sin línea `Riesgo:` | Incumple el contrato | Riesgo mínimo medio (`~/.claude/orchestrator/policy.md:67`) |
 | `RECHAZADO` del `verificador` por segunda vez | Calidad insuficiente | Parar y reportar (`~/.claude/orchestrator/policy.md:36`) |
 | Llega a 40 turnos | Tarea mal acotada | Vuelve al router con una nota de límite de turnos y sin `ESTADO`; no se dispara `SubagentStop` y no queda línea en `log.jsonl` (E2E con Claude Code 2.1.312, [../audit-pending.md](../audit-pending.md) #2) |
 
@@ -68,4 +68,4 @@ Riesgo: ninguno
 
 ## Código
 - `~/.claude/agents/implementador.md`
-- `~/.claude/orchestrator/policy.md:11`, `:16-21`, `:31`, `:37`, `:42-44`, `:47`, `:56-63`
+- `~/.claude/orchestrator/policy.md:11`, `:16-21`, `:31`, `:37`, `:42-44`, `:47`, `:60-67`
