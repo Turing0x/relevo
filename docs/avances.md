@@ -10,6 +10,7 @@ Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, 
 - La instalación de `~/.claude` se reinstaló desde el repo. Ahora la gestiona el instalador y `/orch-doctor` da 9 pass, 0 warn, 0 fail.
 - 2026-10-30: `/orch-stats` mostraba la mitad de las llamadas como `SIN_ESTADO` y al `arquitecto` siempre en el tope de turnos. La causa era una carrera en `orch-telemetry`, no los agentes. Se corrigió el hook, se subieron `maxTurns` (`arquitecto` 45, `verificador` 35) y se reclasificó el log histórico (PR #15).
 - 2026-11-05: el `verificador` pasa a tres niveles según el diff real y todo worker queda con effort máximo `medium`. Por decisión del usuario, este cambio sí relaja una regla (ADR [0012](decisions/0012-verificacion-por-niveles.md)). Rama `feat/verificador-niveles`, sin commit ni PR todavía.
+- 2026-11-05: el prompt del `implementador` gana cinco reglas de calidad y el `verificador` de nivel 2 avisa de complejidad evitable solo como advertencia (ADR [0013](decisions/0013-calidad-del-implementador.md)). Rama `feat/implementador-calidad`, sin commit ni PR todavía.
 
 ## Cronología
 
@@ -188,6 +189,16 @@ Petición del usuario: garantizar los verificadores solo cuando son necesarios, 
 - Recheck de esos arreglos: RECHAZADO (implementación), porque la nueva regex de `Nivel:` en `orch-telemetry` dejaba de reconocer formas en negrita. Corregida y con test.
 - Recheck final (ciclo 2 de 2): APROBADO.
 
+## Calidad del implementador (2026-11-05)
+
+- Petición: analizar el `implementador` en complejidad algorítmica, pasos innecesarios, complejidad excesiva y comentarios innecesarios.
+- `agents/implementador.md` añade cinco reglas: Simplicidad, Comentarios, Eficiencia, Pasos y Repaso final. `effort` y `maxTurns` no cambian.
+- `agents/verificador.md` (nivel 2): avisa de complejidad evitable visible en el diff como `[advertencia]`, nunca bloqueante y sin comandos extra. El precision gate sigue exigiendo evidencia.
+- Datos que lo justifican (ADR [0013](decisions/0013-calidad-del-implementador.md)): 203 de 377 ejecuciones de tests repetían un comando idéntico y 9 de 72 corridas llegaron a ≥40 turnos. En la auditoría de 15 diffs (13 cambios independientes) hubo duplicación dentro del diff en 8, sobreingeniería en 7 y código huérfano en 5. Muestra pequeña, autoría no garantizada y casi toda de effort high.
+- Citas a `agents/implementador.md` desplazadas +5 líneas y corregidas en `GLOSSARY.md`, schema de salida, ejemplos y ficha del agente.
+- Test nuevo: `ImplementerQualityTests` en `tests/test_repo_consistency.py`.
+- `verificador` nivel 2: APROBADO con 6 advertencias, corregidas después (redacción de las reglas, alcance del aviso, agujas del test y filtro de las cifras del ADR). Esas correcciones pasaron `make check`, sin recheck.
+
 ## Cómo se trabajó
 
 - Cada fase fue en su propia rama y PR. Las fases 2 y 3 corrieron en sesiones aparte de Claude Code, cada una en su worktree.
@@ -209,5 +220,6 @@ Estado de los gates en `main` (`c8cdc7e`): 284 tests OK (10 skipped, 3 expected 
 | audit-pending | #5 a medias (timeout de red e interrupción por el usuario) y #7 (clasificación en línea con opus frente a `clasificador` con otro modelo), a comprobar a mano |
 | Medir | Comparar `/orch-stats` dentro de 30 días: llamadas a opus por tarea, `tope` y `SIN_ESTADO`; además rechazos por nivel del `verificador` y el efecto de effort `medium` en `arquitecto` e `implementador` |
 | Verificación por niveles | Commit y PR; reinstalar en `~/.claude` (hasta entonces sigue vigente la política antigua) |
+| Calidad del implementador | Medir a 30 días: comandos repetidos y turnos en `log.jsonl`. Commit y PR; reinstalar en `~/.claude` |
 | Idea abierta | Las lentes 4R como foco dentro del brief del `verificador` (una sola llamada con más dirección) |
 | Limpieza local | El worktree `.claude/worktrees/elegant-haibt-070da9` de la fase 2 sigue en disco; borrarlo necesita aprobación |
