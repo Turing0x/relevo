@@ -10,7 +10,7 @@ Contexto: `~/LocalProjects/4CaminosStore/.claude/orchestrator.md` existe, con ve
 | 1 | Router (opus) | Clasifica en línea: `implementacion`, riesgo medio (pedidos/stock), complejidad 3, 3 archivos | `~/.claude/orchestrator/policy.md:10-11` |
 | 2 | Router | Tabla B: no cabe en línea (3 archivos > 2) y no llega a `arquitecto` (complejidad <4, ≤5 archivos) → `implementador` | `policy.md:31` |
 | 3 | Router → `implementador` | Brief: objetivo, archivos `backend/src/cart/*.ts`, criterio "422 si cantidad > 5", verificación `pnpm --dir backend test` | `policy.md:42` |
-| 4 | `implementador` (sonnet, medium) | `ESTADO: OK`, 3 archivos, `pnpm --dir backend test → passed` | `~/.claude/agents/implementador.md:15-20` |
+| 4 | `implementador` (sonnet, medium) | `ESTADO: OK`, 3 archivos, `pnpm --dir backend test → passed` | `~/.claude/agents/implementador.md:20-25` |
 | 5 | Hook `orch-telemetry` | Registra `{"agent":"implementador","status":"OK",...}` | `~/.claude/hooks/orch-telemetry` |
 | 6 | Router | Gate determinista: test, lint y build del backend → verde | `policy.md:47` |
 | 7 | Router → `verificador` | Nivel 2 con motivo `obligatorio`: pedidos/stock es ruta "verificador obligatorio". Recibe la petición literal, los criterios, los archivos, el nivel y el gate 1; no el razonamiento | `policy.md:48`, `:53` |

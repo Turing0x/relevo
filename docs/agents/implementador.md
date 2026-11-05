@@ -9,7 +9,9 @@ Ficha del worker `implementador` del orquestador. Términos en [../GLOSSARY.md](
 ## Rol
 Implementa el objetivo del brief dentro de la superficie permitida, sigue el estilo del código vecino y ejecuta el comando de verificación (`~/.claude/agents/implementador.md:9-11`). También ejecuta cada tramo de un plan de `arquitecto` (`~/.claude/orchestrator/policy.md:21`, `:30`).
 
-NO toca nada fuera de la superficie permitida: devuelve `AMPLIAR` (`:10`). NO toma decisiones de diseño: devuelve `ESCALAR` (`:13`). NO ejecuta acciones sensibles: devuelve `PENDIENTE_APROBACION` (`:12`). NO lanza subagentes (`disallowedTools: Agent`, `:7`).
+Reglas de calidad (`~/.claude/agents/implementador.md:12-16`, ADR 0013): simplicidad (sin parámetros, exports ni helpers sin llamador, sin guardas de casos imposibles), comentarios solo de lo que el código no dice, eficiencia (sin O(n²) evitable ni trabajo repetido), pasos (test puntual al iterar, suite una vez al final) y un repaso final del diff que quita lo huérfano.
+
+NO toca nada fuera de la superficie permitida: devuelve `AMPLIAR` (`:10`). NO toma decisiones de diseño: devuelve `ESCALAR` (`:18`). NO ejecuta acciones sensibles: devuelve `PENDIENTE_APROBACION` (`:17`). NO lanza subagentes (`disallowedTools: Agent`, `:7`).
 
 ## Cuándo se invoca
 - Tipo `implementacion` que no cabe en línea y no es de complejidad ≥4 ni de >5 archivos (`~/.claude/orchestrator/policy.md:31`).
@@ -24,12 +26,12 @@ Ver [../routing.md](../routing.md).
 El brief: objetivo, sección `## Superficie permitida` (rutas o globs estrechos, nunca `.` ni absolutas), criterios de aceptación, comando de verificación, límites y ruta del plan si existe (`~/.claude/orchestrator/policy.md:42`). En un re-brief, también los hallazgos del `verificador`. Ve CLAUDE.md de usuario y de proyecto, y con ellos la política y la config de proyecto. NO ve el historial del chat. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).
 
 ## Output
-Texto de ≤8 líneas (`~/.claude/agents/implementador.md:15-21`):
+Texto de ≤8 líneas (`~/.claude/agents/implementador.md:20-26`):
 - `ESTADO: OK | ESCALAR: <motivo> | AMPLIAR: <archivos+motivo> | PENDIENTE_APROBACION: <acción>`
 - `Archivos:`
 - `Verificación: <comando> → <resultado>`
 - `Pendientes:`
-- `Riesgo: <N>[,<N>] (<motivo>) | ninguno`: elementos de la lista de alto riesgo que toca el diff. Antes de `ninguno` comprueba si toca código compartido usado por comportamiento no pedido (= 3) (`:14`, `:20`; `~/.claude/orchestrator/policy.md:60-67`). Entra en el riesgo final (`~/.claude/orchestrator/policy.md:11`).
+- `Riesgo: <N>[,<N>] (<motivo>) | ninguno`: elementos de la lista de alto riesgo que toca el diff. Antes de `ninguno` comprueba si toca código compartido usado por comportamiento no pedido (= 3) (`:19`, `:25`; `~/.claude/orchestrator/policy.md:60-67`). Entra en el riesgo final (`~/.claude/orchestrator/policy.md:11`).
 - Detalle largo en `.claude/work/<tarea>.md`.
 
 Schema: [../contracts/implementador-output.schema.json](../contracts/implementador-output.schema.json).
