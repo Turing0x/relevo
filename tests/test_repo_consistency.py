@@ -544,5 +544,24 @@ class VerifierLevelTests(unittest.TestCase):
                     self.assertNotIn(needle, text)
 
 
+class ImplementerQualityTests(unittest.TestCase):
+    def test_implementer_states_quality_rules(self) -> None:
+        text = read("agents", "implementador.md")
+        for label in ("Simplicidad:", "Comentarios:", "Eficiencia:", "Pasos:", "Repaso final:"):
+            with self.subTest(label=label):
+                self.assertIn(label, text)
+
+    def test_verifier_warns_about_avoidable_complexity_without_blocking(self) -> None:
+        text = read("agents", "verificador.md")
+        for needle in (
+            "complejidad evitable",
+            "En nivel 2 o `nivel` ausente",
+            "siempre `[advertencia]`",
+            "nunca bloqueante",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+
+
 if __name__ == "__main__":
     unittest.main()

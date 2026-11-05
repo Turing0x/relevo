@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "implementador → router",
-  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/implementador.md:15-21. Máx 8 líneas.",
+  "description": "Formato real: texto plano línea a línea, no JSON. Este schema describe los campos una vez parseados. Fuente: ~/.claude/agents/implementador.md:20-26. Máx 8 líneas.",
   "type": "object",
   "properties": {
     "estado": {
