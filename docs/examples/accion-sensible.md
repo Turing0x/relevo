@@ -18,5 +18,5 @@ Variantes:
 | Variante | Qué la frena | Fuente |
 |---|---|---|
 | `git push --force` | `permissions.deny` y el hook `block-force-push` (exit 2), aunque el usuario lo apruebe en el chat | `~/.claude/settings.json:7-10`, `~/.claude/hooks/block-force-push:43` |
-| Un `implementador` intenta `pnpm add` | Su prompt le obliga a devolver `PENDIENTE_APROBACION`; además `Bash(pnpm add:*)` está en `ask` | `~/.claude/agents/implementador.md:12`, `~/.claude/settings.json` |
+| Un `implementador` intenta `pnpm add` | Su prompt le obliga a devolver `PENDIENTE_APROBACION`; además `Bash(pnpm add:*)` está en `ask` | `~/.claude/agents/implementador.md:17`, `~/.claude/settings.json` |
 | `cat .env` para leer la URL de producción | Hook `guard-secrets` → `ask` | `~/.claude/hooks/guard-secrets` |

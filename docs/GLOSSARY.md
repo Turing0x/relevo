@@ -16,7 +16,7 @@ Este archivo define cada término de la documentación del orquestador. Cada té
 | tipo | Categoría de la tarea: `busqueda`, `mecanica`, `implementacion`, `arquitectura`, `bug_dificil`, `revision`. | `~/.claude/agents/clasificador.md:12`, `:16` |
 | riesgo | `bajo`, `medio` o `alto`. Alto si toca un elemento 1-5 de la lista de alto riesgo o rutas sensibles del proyecto; el elemento 6 lo deja en medio como mínimo. | `~/.claude/agents/clasificador.md:13`, `:25-33` |
 | lista de alto riesgo | Seis elementos numerados (§6bis): 1 datos o efectos irreversibles, 2 seguridad, 3 contratos consumidos por otros, 4 concurrencia, 5 entrega/entorno/dependencias, 6 ningún test detectaría una regresión. Copia con los mismos números en `clasificador`. | `~/.claude/orchestrator/policy.md:60-67`, `~/.claude/agents/clasificador.md:25-31` |
-| línea de riesgo | Línea obligatoria `Riesgo: <N>[,<N>] (<motivo>) \| ninguno` al final del reporte de `implementador`, `rapido` y del trabajo en línea con cambios. Entra en el riesgo final. | `~/.claude/orchestrator/policy.md:67`, `~/.claude/agents/implementador.md:20`, `~/.claude/agents/rapido.md:16` |
+| línea de riesgo | Línea obligatoria `Riesgo: <N>[,<N>] (<motivo>) \| ninguno` al final del reporte de `implementador`, `rapido` y del trabajo en línea con cambios. Entra en el riesgo final. | `~/.claude/orchestrator/policy.md:67`, `~/.claude/agents/implementador.md:25`, `~/.claude/agents/rapido.md:16` |
 | riesgo final | Máximo entre el riesgo del `clasificador`, el juicio del router, los disparadores de acción sensible, los elementos de la lista de alto riesgo y la línea de riesgo del worker. Es el que usa la tabla B. | `~/.claude/orchestrator/policy.md:11` |
 | complejidad | Entero de 1 a 5 estimado al clasificar. | `~/.claude/agents/clasificador.md:13` |
 | ruta | Destino de una tarea: `en_linea`, `Explore`, `rapido`, `implementador`, `arquitecto` o `verificador`. | `~/.claude/agents/clasificador.md:14` |
@@ -42,9 +42,9 @@ Este archivo define cada término de la documentación del orquestador. Cada té
 | acción sensible | Acción que exige aprobación humana: push/force/reset --hard/branch -D, deploy, migraciones/SQL destructivo, borrado recursivo, secretos, dependencias, IAM/infra/DNS, mensajes externos, pagos. | `~/.claude/orchestrator/policy.md:57` |
 | refuerzo duro | Mecanismo que Claude Code aplica sin depender del modelo: `permissions.ask`/`deny` y hooks. | `~/.claude/orchestrator/policy.md:58`, `~/.claude/settings.json:7-90` |
 | contrato de salida | Formato del reporte final de cada worker: ESTADO, VEREDICTO o JSON. | `~/.claude/orchestrator/policy.md:44` |
-| ESTADO | Primera línea del reporte de `rapido`, `implementador` y `arquitecto`: `OK`, `ESCALAR`, `AMPLIAR` o `PENDIENTE_APROBACION`. | `~/.claude/agents/implementador.md:16` |
-| OK | Valor de ESTADO: el worker terminó lo encargado. | `~/.claude/agents/implementador.md:16` |
-| ESCALAR | Valor de ESTADO: la tarea excede al worker (necesita diseño). | `~/.claude/agents/implementador.md:13` |
+| ESTADO | Primera línea del reporte de `rapido`, `implementador` y `arquitecto`: `OK`, `ESCALAR`, `AMPLIAR` o `PENDIENTE_APROBACION`. | `~/.claude/agents/implementador.md:21` |
+| OK | Valor de ESTADO: el worker terminó lo encargado. | `~/.claude/agents/implementador.md:21` |
+| ESCALAR | Valor de ESTADO: la tarea excede al worker (necesita diseño). | `~/.claude/agents/implementador.md:18` |
 | AMPLIAR | Valor de ESTADO: el worker necesita archivos fuera del brief. | `~/.claude/agents/implementador.md:10` |
 | PENDIENTE_APROBACION | Valor de ESTADO: el worker detectó una acción sensible y no la ejecutó. | `~/.claude/orchestrator/policy.md:43` |
 | VEREDICTO | Primera línea del reporte de `verificador`: `APROBADO` o `RECHAZADO`. | `~/.claude/agents/verificador.md:18` |

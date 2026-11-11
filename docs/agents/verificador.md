@@ -13,7 +13,7 @@ Lee el diff real, lo contrasta con los criterios, lanza tests puntuales si sospe
 - **Precision gate.** Solo hallazgos defendibles con evidencia (`archivo:línea`, comando o salida); nada de estilo salvo que oculte un defecto. Limpio: `Hallazgos: ninguno` (`:14`).
 - **Modo recheck.** Revisa solo `recheck_findings` y marca cada uno `resuelto` o `persiste`; todo hallazgo nuevo es advertencia. `RECHAZADO` solo si persiste alguno o aparece uno de los "siempre bloqueante" (`:15`).
 
-- **Niveles.** Nivel 1 (foco): diff, criterios y llamadores directos, ~12 turnos; reproduce en base solo si sospecha que el defecto ya existía. Nivel 2 o `nivel` ausente: revisión completa. Si el diff contradice un nivel 1 revisa como nivel 2 con motivo `escalado` (`:16`). No repite la suite si el brief trae el gate 1 en verde (`:10`).
+- **Niveles.** Nivel 1 (foco): diff, criterios y llamadores directos, ~12 turnos; reproduce en base solo si sospecha que el defecto ya existía. Nivel 2 o `nivel` ausente: revisión completa. Si el diff contradice un nivel 1 revisa como nivel 2 con motivo `escalado` (`:16`). En nivel 2 o `nivel` ausente avisa además de complejidad evitable visible en el diff (trabajo repetido, sobreingeniería, código huérfano), siempre como `[advertencia]`, nunca bloqueante y sin comandos extra; no contradice el precision gate, porque sigue exigiendo evidencia (`:14`, `:16`, ADR 0013). No repite la suite si el brief trae el gate 1 en verde (`:10`).
 
 NO edita archivos, tampoco vía `Bash` (`:12`). NO verifica su propio trabajo (`:3`). NO recibe el razonamiento del implementador (`:9`; `~/.claude/orchestrator/policy.md:53`).
 
