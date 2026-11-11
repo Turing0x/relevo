@@ -129,7 +129,7 @@ class FreshInstallTests(InstallerCase):
             self.assertEqual(installed.read_bytes(), hook.read_bytes())
         for command in (ROOT / "commands").glob("*.md"):
             self.assertTrue((self.prefix / "commands" / command.name).is_file())
-        for name in ("policy.md", "project-template.md", "stats.py", "doctor.py", "routing.json"):
+        for name in ("policy.md", "project-template.md", "stats.py", "doctor.py", "statusline.py", "routing.json"):
             self.assertTrue((self.prefix / "orchestrator" / name).is_file(), name)
         self.assertEqual(
             (self.prefix / "orchestrator" / "render_routing.py").read_bytes(),
@@ -222,6 +222,17 @@ class IdempotencyAndSafetyTests(InstallerCase):
         self.assertEqual(self.install().returncode, 0)
         self.assertEqual(self.backups(), [])
 
+    def test_status_line_is_never_written_and_user_one_is_kept(self) -> None:
+        self.assertEqual(self.install().returncode, 0)
+        self.assertNotIn("statusLine", self.settings())
+        self.assertTrue((self.prefix / "orchestrator" / "statusline.py").is_file())
+        mine = {"type": "command", "command": "/usr/local/bin/my-line --x 'y z'", "padding": 2}
+        self.write_settings({**self.USER_SETTINGS, "statusLine": mine})
+        self.assertEqual(self.install("--force").returncode, 0)
+        self.assertEqual(self.settings()["statusLine"], mine)
+        self.assertEqual(self.install().returncode, 0)
+        self.assertEqual(self.settings()["statusLine"], mine)
+
     def test_user_settings_are_preserved(self) -> None:
         path = self.write_settings(self.USER_SETTINGS)
         original = path.read_bytes()
@@ -277,6 +288,14 @@ class IdempotencyAndSafetyTests(InstallerCase):
         self.assertIn("nothing to do", self.install().stdout)
         self.assertEqual(self.uninstall().returncode, 0)
         self.assertEqual(self.settings(), {"hooks": {"SessionStart": [{"matcher": "startup", "hooks": []}]}})
+
+    def test_trim_test_output_is_installed_but_not_registered(self) -> None:
+        self.assertEqual(self.install().returncode, 0)
+        trim = self.prefix / "hooks" / "trim-test-output"
+        self.assertTrue(os.access(trim, os.X_OK))
+        self.assertNotIn("trim-test-output", json.dumps(self.settings()))
+        self.assertEqual(self.uninstall().returncode, 0)
+        self.assertFalse(trim.exists())
 
     def test_user_registered_orch_resume_is_left_alone(self) -> None:
         resume = str(self.prefix / "hooks" / "orch-resume")

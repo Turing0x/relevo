@@ -12,7 +12,7 @@ Hace tareas mecánicas en varios archivos: renombrar, formatear, cambios de 1-2 
 NO rediseña (`:9`). NO toca varios módulos ni toma decisiones de diseño: devuelve `ESCALAR` (`:10`). NO ejecuta acciones sensibles: devuelve `PENDIENTE_APROBACION` (`:11`). Siempre declara la línea de riesgo (`:12`).
 
 ## Cuándo se invoca
-Tarea de tipo `mecanica` que no es de ≤2 archivos con salida corta. Ver [../routing.md](../routing.md#paso-3-tabla-b-ruta-inicial-por-tipo) y `~/.claude/orchestrator/policy.md:29`.
+Tarea de tipo `mecanica` que no es de ≤2 archivos con salida ≤80 líneas (la de tests/build llega ya recortada por `trim-test-output`, ADR [0015](../decisions/0015-recorte-de-salida-de-tests.md)). Ver [../routing.md](../routing.md#paso-3-tabla-b-ruta-inicial-por-tipo) y `~/.claude/orchestrator/policy.md:29`.
 
 ## Input
 El brief. Ve CLAUDE.md de usuario y de proyecto (no declara `omitClaudeMd`), y por tanto la política con la instrucción para workers de `~/.claude/orchestrator/policy.md:2`. NO ve el historial del chat (`~/.claude/orchestrator/policy.md:42`). Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).

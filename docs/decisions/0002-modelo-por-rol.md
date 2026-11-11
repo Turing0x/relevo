@@ -10,7 +10,7 @@ Facturación por suscripción Max/Pro: lo que se optimiza es la cuota y la venta
 |---|---|---|---|
 | `clasificador`, `Explore`, `rapido` | haiku | low | 3 / 20 / 15 |
 | `implementador` | sonnet | medium | 40 |
-| `arquitecto` | opus | medium | 45 |
+| `arquitecto` | opus | medium | 35 (antes 45; ver [0014](0014-coste-por-rol-y-contexto.md)) |
 | `verificador` | opus | medium | 35 |
 
 Tope: effort `medium` para todo worker, también en opus ([0012](0012-verificacion-por-niveles.md)).

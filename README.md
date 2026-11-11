@@ -108,7 +108,7 @@ Default prefix is `~/.claude`. Nothing is written outside it.
 | `agents/*.md` (6 workers) | `agents/` | Copied. A name clash with an unrelated agent aborts unless `--force` |
 | `hooks/*` | `hooks/` | Copied with mode `0755` |
 | `commands/*.md` | `commands/` | Copied |
-| `orchestrator/{policy.md,project-template.md,stats.py,doctor.py,routing.json}`, `scripts/render_routing.py` | `orchestrator/` | Copied (`doctor.py` reuses `render_routing.py` and `routing.json` for its `routing:sync` check) |
+| `orchestrator/{policy.md,project-template.md,stats.py,doctor.py,statusline.py,routing.json}`, `scripts/render_routing.py` | `orchestrator/` | Copied (`doctor.py` reuses `render_routing.py` and `routing.json` for its `routing:sync` check) |
 | `docs/**` | `orchestrator/docs/**` | Copied |
 | `templates/settings.example.json` | `settings.json` | **Merged**, never overwritten (see below) |
 | `templates/CLAUDE.md.example` | `CLAUDE.md` | Appended as a block between `<!-- relevo:begin -->` and `<!-- relevo:end -->`, unless the file already has an `@orchestrator/policy.md` line |
@@ -118,9 +118,19 @@ What the settings merge adds, taken from [`templates/settings.example.json`](tem
 - `env`: `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (workers cannot spawn subagents) and `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` (default model for subagents without `model:`). If you already set either to a different value, yours is kept and the installer warns.
 - `permissions.deny`: 2 rules for `git push --force` / `-f`.
 - `permissions.ask`: 44 rules. These make Claude Code ask before `git push`, dependency installs (`npm`, `pip`, `brew`, `npx`...), deploys, `rm -r`, `git reset --hard`, edits to `.env*` and to the hooks, and similar. They apply to **all** your projects.
-- `hooks`: `block-force-push` (PreToolUse on Bash), `guard-secrets` (PreToolUse on Bash, Grep and Read), `orch-telemetry` (SubagentStop, async) and `orch-resume` (SessionStart with the matchers `compact` and `resume`, timeout 5 s: prints the open task logbook `.claude/work/<task>/estado.md` so the budget counters survive a compaction).
+- `hooks`: `block-force-push` (PreToolUse on Bash), `guard-secrets` (PreToolUse on Bash, Grep and Read), `orch-telemetry` (SubagentStop, async) and `orch-resume` (SessionStart with the matchers `compact` and `resume`, timeout 5 s: prints the open task logbook `.claude/work/<task>/estado.md` so the budget counters survive a compaction). `trim-test-output` is copied to `hooks/` but not registered: it is opt-in (see "Optional: trim test output").
 
 Your other settings keys are never touched, and the merge is idempotent. Before changing anything the installer saves the previous files under `<prefix>/.relevo-backups/<timestamp>/`. A backup identical to an earlier one (same checksum) reuses it; the 5 most recently used are kept, plus pinned ones and any that hold an original replaced with `--force`. If `settings.json` has comments (JSONC) or duplicate keys, the installer stops without writing anything, because rewriting it as JSON would lose them. What it added is recorded in `<prefix>/orchestrator/.relevo-manifest.json`, which the uninstaller uses to undo exactly that. Read the [hooks](hooks/) and the template before installing; `--dry-run` shows a diff of `settings.json` and `CLAUDE.md` without writing.
+
+### Optional: trim test output
+
+`hooks/trim-test-output` is installed but off by default. When active it rewrites known test commands (`make check`, `pytest`, `python3 -m unittest`, `npm test`, `go test`, `cargo test`) so that only the failure lines and the tail of an output over 120 lines reach the model; the full log goes to `$TMPDIR/relevo-test-*.log` and the exit code is unchanged. Prefix a command with `RELEVO_FULL_OUTPUT=1` to get the whole output, or set `RELEVO_TRIM_DISABLE=1` in `env` to turn it off. To enable it, add this to `PreToolUse` in `~/.claude/settings.json`:
+
+```json
+{"matcher": "Bash", "hooks": [{"type": "command", "command": "~/.claude/hooks/trim-test-output", "timeout": 5}]}
+```
+
+Permission warning: Claude Code evaluates permissions on the command **after** the rewrite, and a rewritten command asks for approval even when `permissions.allow` covers the original (observed, even with a blanket `Bash` allow); `deny` rules still apply. In auto mode the permission classifier decides instead of a prompt. Enable it only if you accept those prompts. See [ADR 0015](docs/decisions/0015-recorte-de-salida-de-tests.md).
 
 ## Example
 
@@ -140,6 +150,16 @@ If step 6 returns `RECHAZADO`, the policy either re-briefs the implementer or as
 **A sensitive action.** "Push the changes and deploy to production." The router must stop and ask you, naming the exact commands, their scope and how to roll back. If you approve the push, Claude Code asks again because `Bash(git push:*)` is in `permissions.ask`, and `block-force-push` lets it through only if it is not a force push. A force push is denied by `permissions.deny` and by the hook even if you approve it in chat. Details and variants: [`docs/examples/accion-sensible.md`](docs/examples/accion-sensible.md).
 
 **Telemetry.** `/orch-stats` runs `stats.py` and prints a table per agent. Its output is in Spanish, because it comes straight from the code: the header reads `Últimos 30 días — N llamadas`, followed by columns such as `agente`, `modelo`, `turnos~`, `tope` and `estados`.
+
+## Optional status line
+
+The installer copies `statusline.py` but never touches `statusLine` in your `settings.json`. To enable it, add it yourself. It prints `ctx NN% · cache: hit NN% Nm|frío` and omits any segment whose field is missing from the input:
+
+```json
+"statusLine": {"type": "command", "command": "python3 ~/.claude/orchestrator/statusline.py"}
+```
+
+To keep an existing status line (for example caveman's), wrap it: `python3 ~/.claude/orchestrator/statusline.py --wrap '<your command>'`. The wrapped command gets the same stdin, runs without a shell with a 2 s timeout, and its output is kept with the relevo segment appended.
 
 ## What it is NOT / limitations
 

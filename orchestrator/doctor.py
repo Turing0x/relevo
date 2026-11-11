@@ -2,8 +2,8 @@
 """relevo doctor: read-only diagnosis of a relevo installation.
 
 Each check has a stable id, a status (pass, warn or fail) and, when it does not pass, a remedy. The doctor
-only reads files (and runs ``python3 --version``); it never applies a remedy. Exit code: 1 if any check
-fails, 0 otherwise, 2 on bad arguments.
+only reads files (and runs ``python3 --version`` and ``claude --version``); it never applies a remedy. Exit
+code: 1 if any check fails, 0 otherwise, 2 on bad arguments.
 
     doctor.py [--prefix DIR] [--project DIR] [--json]
 
@@ -30,16 +30,19 @@ from typing import Any, Callable
 MANIFEST_REL = "orchestrator/.relevo-manifest.json"
 AGENTS = ("Explore", "arquitecto", "clasificador", "implementador", "rapido", "verificador")
 COMMANDS = ("orch-doctor", "orch-stats", "orchestrator-init")
-HOOKS = ("block-force-push", "guard-secrets", "orch-resume", "orch-telemetry")
-# (event, values the matcher must cover, hook). Kept equal to templates/settings.example.json by the tests.
+HOOKS = ("block-force-push", "guard-secrets", "orch-resume", "orch-telemetry", "trim-test-output")
+# (event, matcher values to cover, hook); equals the settings template (tests). Opt-in trim-test-output is absent.
 EXPECTED_HOOKS = (
     ("PreToolUse", ("Bash",), "block-force-push"),
     ("PreToolUse", ("Bash", "Grep", "Read"), "guard-secrets"),
     ("SubagentStop", (), "orch-telemetry"),
     ("SessionStart", ("compact", "resume"), "orch-resume"),
 )
+OPT_IN_HOOK = "trim-test-output"
 ENV_REQUIRED = {"CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"}
 ENV_RECOMMENDED = {"CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"}
+FORCE_VAR = "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"
+MIN_CLAUDE = (2, 1, 251)  # first version that honours the per-role model of the agents
 MODELS = ("haiku", "sonnet", "opus", "inherit")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 SHEBANG = "#!/usr/bin/env python3"
@@ -339,6 +342,16 @@ def disabled_by(ctx: Context, settings: dict[str, Any]) -> list[str]:
     return found
 
 
+def trim_registered(hooks: dict[str, Any], target: Path) -> bool:
+    groups = hooks.get("PreToolUse")
+    return isinstance(groups, list) and any(
+        isinstance(g, dict)
+        and isinstance(g.get("hooks"), list)
+        and any(isinstance(h, dict) and points_to(h.get("command"), target) for h in g["hooks"])
+        for g in groups
+    )
+
+
 def check_hooks_registered(ctx: Context) -> Result:
     cid = "hooks:registered"
     settings, error = load_settings(ctx.prefix)
@@ -375,10 +388,32 @@ def check_hooks_registered(ctx: Context) -> Result:
             "quita disableAllHooks y " + reinstall_hint(ctx) + " (fusiona settings.json sin pisar lo tuyo)",
             details,
         )
-    return ok(cid, "hooks registrados, incluido orch-resume en SessionStart compact y resume")
+    message = "hooks registrados, incluido orch-resume en SessionStart compact y resume"
+    if trim_registered(hooks, ctx.prefix / "hooks" / OPT_IN_HOOK):
+        message += f"; {OPT_IN_HOOK} activado (opt-in: las reglas allow se evalúan sobre el comando reescrito)"
+    return ok(cid, message)
 
 
 # --------------------------------------------------------------------------- env
+
+
+def force_sources(ctx: Context, user_env: dict[str, Any]) -> list[str]:
+    """Where ``CLAUDE_CODE_SUBAGENT_MODEL_FORCE`` is ``1``/``true``: user settings, project settings, environment."""
+    on = ("1", "true")
+    found = [str(ctx.prefix / "settings.json")] if str(user_env.get(FORCE_VAR, "")).lower() in on else []
+    if ctx.project != ctx.prefix:
+        for name in ("settings.json", "settings.local.json"):
+            path = ctx.project / ".claude" / name
+            try:
+                data = load_json(path)
+            except (OSError, ValueError):
+                continue
+            project_env = data.get("env") if isinstance(data, dict) else None
+            if isinstance(project_env, dict) and str(project_env.get(FORCE_VAR, "")).lower() in on:
+                found.append(str(path))
+    if os.environ.get(FORCE_VAR, "").lower() in on:
+        found.append("el entorno de esta shell")
+    return found
 
 
 def check_env(ctx: Context) -> Result:
@@ -403,6 +438,8 @@ def check_env(ctx: Context) -> Result:
     config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
     if config_dir and os.path.realpath(os.path.expanduser(config_dir)) != os.path.realpath(ctx.prefix):
         warns.append(f"CLAUDE_CONFIG_DIR apunta a {config_dir}, no a {ctx.prefix}")
+    forced = force_sources(ctx, env)
+    warns += [f"{FORCE_VAR} activo en {source}" for source in forced]
     if fails:
         return Result(
             cid,
@@ -412,8 +449,36 @@ def check_env(ctx: Context) -> Result:
             fails + warns,
         )
     if warns:
-        return Result(cid, "warn", "env distinto de lo recomendado", "revisa env en settings.json y tu shell", warns)
+        remedy = "revisa env en settings.json y tu shell"
+        if forced:
+            remedy = f"quita {FORCE_VAR}: anula el modelo por rol; " + remedy
+        return Result(cid, "warn", "env distinto de lo recomendado", remedy, warns)
     return ok(cid, "env correcto (profundidad de subagentes 1)")
+
+
+# --------------------------------------------------------------------------- claude:version
+
+
+def check_claude_version(ctx: Context) -> Result:
+    cid = "claude:version"
+    floor = ".".join(map(str, MIN_CLAUDE))
+    remedy = f"actualiza Claude Code a {floor} o superior (`claude update`)"
+    exe = os.environ.get("RELEVO_CLAUDE_BIN") or shutil.which("claude")
+    if not exe:
+        return Result(cid, "warn", "no se encuentra `claude` en el PATH ni en RELEVO_CLAUDE_BIN", remedy)
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=5, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return Result(cid, "warn", f"`{exe} --version` no responde", remedy)
+    match = re.search(r"\d+\.\d+\.\d+", out)
+    if match is None:
+        return Result(cid, "warn", f"salida de `{exe} --version` no reconocida: {out.strip()[:60]!r}", remedy)
+    version = tuple(int(part) for part in match.group().split("."))
+    if version < MIN_CLAUDE:
+        return Result(
+            cid, "warn", f"Claude Code {match.group()} no respeta el modelo por rol de los agentes (<{floor})", remedy
+        )
+    return ok(cid, f"Claude Code {match.group()}")
 
 
 # --------------------------------------------------------------------------- manifest:drift
@@ -590,6 +655,7 @@ CHECKS: tuple[Callable[[Context], Result], ...] = (
     check_hooks_executable,
     check_hooks_registered,
     check_env,
+    check_claude_version,
     check_manifest,
     check_claude_md,
     check_gitignore,
@@ -601,6 +667,7 @@ CHECK_IDS = (
     "hooks:executable",
     "hooks:registered",
     "env",
+    "claude:version",
     "manifest:drift",
     "claude-md:import",
     "gitignore:work",

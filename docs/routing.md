@@ -54,9 +54,9 @@ Hay una copia en `~/.claude/agents/clasificador.md:17-23`. Las dos se generan de
 | Tipo | Condición | Agente | Modelo | Fuente |
 |---|---|---|---|---|
 | `revision` | siempre | `verificador` | opus | `~/.claude/orchestrator/policy.md:27` |
-| `busqueda` | ≤3 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~10k tokens) | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:28` |
-| `busqueda` | resto, o en línea ya van >5 búsquedas secuenciales | `Explore` | haiku | `~/.claude/orchestrator/policy.md:28` |
-| `mecanica` (incluye ejecutar tests/build y acciones sensibles puras como deploy o push) | ≤2 archivos y salida corta | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:29` |
+| `busqueda` | ≤2 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~5k tokens) | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:28` |
+| `busqueda` | resto, o en línea ya van >3 búsquedas secuenciales | `Explore` | haiku | `~/.claude/orchestrator/policy.md:28` |
+| `mecanica` (incluye ejecutar tests/build y acciones sensibles puras como deploy o push) | ≤2 archivos y salida ≤80 líneas (tests/build: salida recortada solo si `trim-test-output` está activado) | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:29` |
 | `mecanica` | resto | `rapido` | haiku | `~/.claude/orchestrator/policy.md:29` |
 | `arquitectura`, `bug_dificil` | siempre | `arquitecto` → plan → `implementador` por tramo (en paralelo si los archivos son disjuntos) | opus → sonnet | `~/.claude/orchestrator/policy.md:30` |
 | `implementacion` (incluye escribir tests) | ≤2 archivos, complejidad ≤2, riesgo no alto | router (en línea) | sesión | `~/.claude/orchestrator/policy.md:31` |
@@ -73,7 +73,7 @@ Lo sensible no es un tipo: el `clasificador` lo marca en `necesita_aprobacion` y
 | Gate determinista en rojo | Vuelve al mismo ejecutor; cuenta como ciclo; nunca `verificador` sobre rojo | mismo ejecutor | — | `~/.claude/orchestrator/policy.md:47` |
 | Gate verde y riesgo final alto, salida de `arquitecto`, replan, ruta obligatoria o tarea `revision` | Nivel 2: revisión completa | `verificador` | opus | `~/.claude/orchestrator/policy.md:48` |
 | Gate verde, riesgo final bajo y sin cambio de comportamiento o ≤50 líneas de producción (nunca docs que actúan como código) cubiertas por test | Nivel 0: sin `verificador`; el router lee el diff y lo consta en §7 | — | — | `~/.claude/orchestrator/policy.md:49`, `:70` |
-| Gate verde, ≤200 líneas y ≤5 archivos de producción, riesgo no alto | Nivel 1: diff, criterios, llamadores directos | `verificador` | opus | `~/.claude/orchestrator/policy.md:50` |
+| Gate verde, ≤200 líneas y ≤5 archivos de producción, riesgo no alto | Nivel 1: diff, criterios, llamadores directos. Experimento (ADR [0014](decisions/0014-coste-por-rol-y-contexto.md)): en modo `normal` se lanza con `model: "sonnet"`; si devuelve `Nivel: 2 (escalado)`, se descarta sin consumir ciclo y se relanza en opus nivel 2. `verificador_modelo: opus` en la config de proyecto lo desactiva | `verificador` | sonnet (experimento); opus si escala | `~/.claude/orchestrator/policy.md:48`, `:50` |
 | Gate verde, >200 líneas o >5 archivos de producción | Nivel 2 | `verificador` | opus | `~/.claude/orchestrator/policy.md:51` |
 | Multitramo | Gate 1 por tramo; `verificador` solo en tramos de riesgo alto (el último lo cubre la final); nivel 2 al final sobre el diff completo. Sin commit por tramo, `base_commit` es el de la tarea y el foco lo da `archivos` | `verificador` | opus | `~/.claude/orchestrator/policy.md:52` |
 | 2º ciclo tras `RECHAZADO` con `Causa: implementación` o dudosa | `verificador` en `modo: recheck` con `recheck_findings`: revisa solo esos; un hallazgo nuevo es advertencia y no consume ciclo | `verificador` | opus | `~/.claude/orchestrator/policy.md:36` |

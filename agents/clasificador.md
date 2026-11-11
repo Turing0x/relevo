@@ -17,8 +17,8 @@ Responde SOLO este JSON:
 - ruta por tipo (copia de §2B de policy.md, generada desde orchestrator/routing.json):
 <!-- relevo:routing:begin -->
   revision → verificador
-  busqueda → en_linea si ≤3 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~10k tokens); si no Explore (también si en línea ya van >5 búsquedas secuenciales)
-  mecanica → en_linea si ≤2 archivos y salida corta; si no rapido
+  busqueda → en_linea si ≤2 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~5k tokens); si no Explore (también si en línea ya van >3 búsquedas secuenciales)
+  mecanica → en_linea si ≤2 archivos y salida ≤80 líneas (tests/build: salida recortada solo si `trim-test-output` está activado); si no rapido
   arquitectura, bug_dificil → arquitecto
   implementacion → en_linea si ≤2 archivos, complejidad ≤2 y riesgo no alto; si no, arquitecto si complejidad ≥4 o >5 archivos; resto implementador
 <!-- relevo:routing:end -->

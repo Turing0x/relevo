@@ -172,6 +172,50 @@ class ClaudeCodeE2E(unittest.TestCase):
         self.assertIn("guard-secrets", results[1])
         self.assertNotIn(CANARY, self.api.raw_bodies())
 
+    def write_noisy_tests(self) -> None:
+        tests = self.repo / "tests"
+        tests.mkdir()
+        body = "import unittest\n\nclass T(unittest.TestCase):\n    def test_noise(self):\n"
+        body += "        print('\\n'.join(f'noise {i}' for i in range(300)))\n        self.fail('boom')\n"
+        (tests / "test_noise.py").write_text(body, encoding="utf-8")
+
+    def enable_trim_hook(self, permissions: dict[str, Any]) -> Path:
+        """Register the opt-in trim-test-output hook in this HOME and set the project's permissions."""
+        path = self.home / ".claude" / "settings.json"
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        hook = self.home / ".claude" / "hooks" / "trim-test-output"
+        settings["hooks"]["PreToolUse"].append(
+            {"matcher": "Bash", "hooks": [{"type": "command", "command": str(hook), "timeout": 5}]}
+        )
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        project = self.repo / ".claude" / "settings.json"
+        project.parent.mkdir()
+        project.write_text(json.dumps({"permissions": permissions}), encoding="utf-8")
+        self.write_noisy_tests()
+        return hook
+
+    def run_unittest_tool(self, marker: str) -> str:
+        self.api.scripts[marker] = [
+            tool("Bash", {"command": "python3 -m unittest discover -s tests", "description": "tests"}),
+            text("hecho"),
+        ]
+        self.claude(f"{marker} corre los tests")
+        (output,) = self.results(marker)
+        return output
+
+    def test_trim_hook_rewritten_command_needs_its_own_permission(self) -> None:
+        # Not even a blanket allow `Bash` skips the prompt once updatedInput rewrites the command (observed).
+        self.enable_trim_hook({"allow": ["Bash"]})
+        output = self.run_unittest_tool("E2E-TRIM")
+        self.assertIn("requires approval", output)
+        self.assertNotIn("[relevo] salida recortada", output)
+
+    def test_deny_rule_still_applies_to_a_command_the_trim_hook_would_rewrite(self) -> None:
+        self.enable_trim_hook({"deny": ["Bash(python3 -m unittest:*)"]})
+        output = self.run_unittest_tool("E2E-TRIM-DENY")
+        self.assertNotIn("noise", output)
+        self.assertNotIn("[relevo] salida recortada", output)
+
     # ------------------------------------------------------------------ SessionStart: orch-resume (audit-pending #8)
 
     def test_logbook_reaches_the_context_on_resume(self) -> None:

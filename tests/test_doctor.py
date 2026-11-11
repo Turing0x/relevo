@@ -53,6 +53,8 @@ class DoctorCase(unittest.TestCase):
         tmp = Path(self._tmp.name)
         self.home = tmp / "home"
         self.home.mkdir()
+        self.claude = tmp / "claude"
+        self.fake_claude("2.1.251 (Claude Code)")
         self.prefix = tmp / "prefix"
         result = subprocess.run(
             [sys.executable, str(INSTALLER), "install", "--prefix", str(self.prefix)],
@@ -72,7 +74,12 @@ class DoctorCase(unittest.TestCase):
         skip = ("ORCH_LOG", "PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")
         env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE") and k not in skip}
         env["HOME"] = str(self.home)
+        env["RELEVO_CLAUDE_BIN"] = str(self.claude)
         return env
+
+    def fake_claude(self, output: str) -> None:
+        self.claude.write_text(f"#!/bin/sh\necho '{output}'\n", encoding="utf-8")
+        self.claude.chmod(0o755)
 
     def run_doctor(self, *extra: str) -> tuple[int, dict[str, dict[str, Any]], str]:
         result = subprocess.run(
@@ -209,6 +216,20 @@ class BrokenInstallTests(DoctorCase):
         self.write_settings(settings)
         self.assertEqual(self.status("hooks:registered"), "pass")
 
+    def test_trim_test_output_is_optional_and_noted_when_registered(self) -> None:
+        checks = self.run_doctor()[1]
+        self.assertEqual(checks["hooks:registered"]["status"], "pass")
+        self.assertNotIn("trim-test-output", checks["hooks:registered"]["message"])
+        trim = str(self.prefix / "hooks" / "trim-test-output")
+        settings = self.settings()
+        settings["hooks"]["PreToolUse"].append(
+            {"matcher": "Bash", "hooks": [{"type": "command", "command": trim, "timeout": 5}]}
+        )
+        self.write_settings(settings)
+        check = self.run_doctor()[1]["hooks:registered"]
+        self.assertEqual(check["status"], "pass")
+        self.assertIn("opt-in", check["message"])
+
     def test_guard_secrets_matcher_must_cover_read(self) -> None:
         settings = self.settings()
         for group in settings["hooks"]["PreToolUse"]:
@@ -248,6 +269,43 @@ class BrokenInstallTests(DoctorCase):
         del settings["env"]["CLAUDE_CODE_SUBAGENT_MODEL"]
         self.write_settings(settings)
         self.assertEqual(self.status("env"), "warn")
+
+    def test_force_in_user_project_or_environment_is_a_warning(self) -> None:
+        settings = self.settings()
+        settings["env"]["CLAUDE_CODE_SUBAGENT_MODEL_FORCE"] = "true"
+        self.write_settings(settings)
+        check = self.run_doctor()[1]["env"]
+        self.assertEqual(check["status"], "warn")
+        self.assertIn("quita CLAUDE_CODE_SUBAGENT_MODEL_FORCE: anula el modelo por rol", check["remedy"])
+        self.write_settings({**settings, "env": {**settings["env"], "CLAUDE_CODE_SUBAGENT_MODEL_FORCE": "0"}})
+        self.assertEqual(self.status("env"), "pass")
+        (self.project / ".claude").mkdir()
+        (self.project / ".claude" / "settings.local.json").write_text(
+            '{"env": {"CLAUDE_CODE_SUBAGENT_MODEL_FORCE": "1"}}', encoding="utf-8"
+        )
+        self.assertEqual(self.status("env"), "warn")
+        (self.project / ".claude" / "settings.local.json").unlink()
+        self.assertEqual(self.status("env"), "pass")
+        ctx = doctor.Context(self.prefix, self.project, None, DOCTOR.parent)
+        old = os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL_FORCE")
+        os.environ["CLAUDE_CODE_SUBAGENT_MODEL_FORCE"] = "1"
+        try:
+            self.assertEqual(doctor.force_sources(ctx, {}), ["el entorno de esta shell"])
+        finally:
+            if old is None:
+                del os.environ["CLAUDE_CODE_SUBAGENT_MODEL_FORCE"]
+            else:
+                os.environ["CLAUDE_CODE_SUBAGENT_MODEL_FORCE"] = old
+
+    def test_claude_version_below_the_floor_or_unreadable_is_a_warning(self) -> None:
+        self.fake_claude("2.1.250 (Claude Code)")
+        self.assertEqual(self.status("claude:version"), "warn")
+        self.fake_claude("2.2.0 (Claude Code)")
+        self.assertEqual(self.status("claude:version"), "pass")
+        self.fake_claude("???")
+        self.assertEqual(self.status("claude:version"), "warn")
+        self.claude.unlink()
+        self.assertEqual(self.status("claude:version"), "warn")
 
     def test_modified_file_is_a_warning_and_missing_file_a_failure(self) -> None:
         with open(self.prefix / "agents" / "rapido.md", "a", encoding="utf-8") as handle:
@@ -339,6 +397,7 @@ class DoctorConsistencyTests(unittest.TestCase):
                 "hooks:executable",
                 "hooks:registered",
                 "env",
+                "claude:version",
                 "manifest:drift",
                 "claude-md:import",
                 "gitignore:work",

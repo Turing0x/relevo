@@ -50,7 +50,7 @@ STAMP_FORMAT = "%Y%m%d-%H%M%S"
 DOCS_REL = "orchestrator/docs"
 DEPTH_KEY = "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
 REQUIRED_DIRS = ("agents", "hooks", "commands", "orchestrator", "docs", "templates")
-ORCHESTRATOR_FILES = ("policy.md", "project-template.md", "stats.py", "doctor.py", "routing.json")
+ORCHESTRATOR_FILES = ("policy.md", "project-template.md", "stats.py", "doctor.py", "statusline.py", "routing.json")
 # Installed next to doctor.py, which reuses it for the routing:sync check.
 SCRIPT_FILES = {"orchestrator/render_routing.py": "scripts/render_routing.py"}
 LITERAL_HOME = "~/.claude"

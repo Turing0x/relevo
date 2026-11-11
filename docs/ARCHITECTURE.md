@@ -34,6 +34,7 @@ Detalle en [routing.md](routing.md). Motivo registrado: "un worker arranca en fr
 | Hook `guard-secrets` | `~/.claude/hooks/guard-secrets` (PreToolUse Bash, Grep, Read) | Sí: pide confirmación (`ask`) |
 | Hook `orch-telemetry` | `~/.claude/hooks/orch-telemetry` (SubagentStop, async) | Sí: escribe el log cuando el worker termina con un reporte (no en `maxTurns`, error de API ni en `claude -p`; ver [failure-modes.md](failure-modes.md)) |
 | Hook `orch-resume` | `~/.claude/hooks/orch-resume` (SessionStart `compact` y `resume`, timeout 5 s) | Sí: imprime el logbook activo y la salida llega al contexto del router (E2E `tests/e2e/`, Claude Code 2.1.312) |
+| Hook `trim-test-output` | `~/.claude/hooks/trim-test-output` (PreToolUse Bash, timeout 5 s), **opcional**: no se registra por defecto | Parcial: cambia el comando (`updatedInput`) y nunca decide permisos; con él activo, el comando reescrito pide aprobación (E2E; ver [ADR 0015](decisions/0015-recorte-de-salida-de-tests.md)) |
 | Logbook de tarea | `<raíz git>/.claude/work/<tarea>/estado.md` (`~/.claude/orchestrator/policy.md:38`) | No (lo escribe y lee el router) |
 | Fuente de la tabla B | `orchestrator/routing.json` del repo → `scripts/render_routing.py` reescribe las dos copias; ambos se instalan en `~/.claude/orchestrator/` para `routing:sync` | No en ejecución; CI (`make docs-check`) y `/orch-doctor` |
 | Log de telemetría | `~/.claude/orchestrator/log.jsonl` | — |
@@ -65,6 +66,7 @@ flowchart TD
     R -->|consolidación final| U
     H1[[block-force-push]] -.bloquea.-> R & RA & I & A & V
     H2[[guard-secrets]] -.pide OK.-> R & E & RA & I & A & V
+    H4[[trim-test-output opcional]] -.recorta salida de tests.-> R & RA & I & A & V
     H3[[orch-telemetry]] -.al terminar cada worker.-> LOG[(log.jsonl)]
 ```
 
