@@ -16,7 +16,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
@@ -429,6 +429,119 @@ class BriefAndVerifierContractTests(unittest.TestCase):
         ):
             with self.subTest(brief=bad_brief), self.assertRaises(jsonschema.ValidationError):
                 validate(bad_brief, brief)
+
+    def test_verifier_level_fields_share_the_slug_pattern(self) -> None:
+        patterns = {
+            schema("brief.schema.json")["properties"]["motivo_nivel"]["pattern"],
+            schema("verificador-output.schema.json")["properties"]["motivo"]["pattern"],
+            schema("telemetry-record.schema.json")["properties"]["motivo"]["pattern"],
+        }
+        self.assertEqual(len(patterns), 1)
+        pattern = re.compile(str(patterns.pop()))
+        self.assertRegex("tamano", pattern)
+        self.assertRegex("riesgo-3", pattern)
+        for value in ("texto libre", "", "x" * 31, "Tamano"):
+            with self.subTest(value=value):
+                self.assertIsNone(pattern.fullmatch(value))
+
+    @unittest.skipUnless(importlib.util.find_spec("jsonschema"), "jsonschema not installed")
+    def test_brief_accepts_level_1_and_rejects_level_0(self) -> None:
+        import jsonschema
+
+        brief = schema("brief.schema.json")
+        jsonschema.validate({"objetivo": "x", "nivel": 1, "motivo_nivel": "tamano"}, brief)
+        for bad in ({"objetivo": "x", "nivel": 0}, {"objetivo": "x", "nivel": 1, "motivo_nivel": "texto libre"}):
+            with self.subTest(brief=bad), self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(bad, brief)
+
+
+class EffortCapTests(unittest.TestCase):
+    """User decision (ADR 0012): no worker above medium, whatever its model."""
+
+    EXPECTED: ClassVar[dict[str, str]] = {
+        "Explore": "low",
+        "arquitecto": "medium",
+        "clasificador": "low",
+        "implementador": "medium",
+        "rapido": "low",
+        "verificador": "medium",
+    }
+
+    @staticmethod
+    def effort(text: str) -> str | None:
+        found = re.search(r"(?m)^effort:\s*(\S+)\s*$", text.split("---", 2)[1])
+        return found.group(1) if found else None
+
+    def test_no_worker_exceeds_medium(self) -> None:
+        for path in sorted((ROOT / "agents").glob("*.md")):
+            with self.subTest(agent=path.name):
+                self.assertIn(self.effort(path.read_text(encoding="utf-8")), {"low", "medium"})
+
+    def test_efforts_match_the_decision(self) -> None:
+        found = {p.stem: self.effort(p.read_text(encoding="utf-8")) for p in (ROOT / "agents").glob("*.md")}
+        self.assertEqual(found, self.EXPECTED)
+
+    def test_cards_state_the_same_effort(self) -> None:
+        for name, effort in self.EXPECTED.items():
+            with self.subTest(agent=name):
+                lines = read("docs", "agents", f"{name}.md").splitlines()
+                model_line = next(x for x in lines if x.startswith("model:"))
+                self.assertIn(f"effort {effort}", model_line)
+
+    def test_policy_states_the_cap(self) -> None:
+        self.assertIn("`effort` máximo `medium`", read("orchestrator", "policy.md"))
+
+
+class VerifierLevelTests(unittest.TestCase):
+    def section_5(self) -> str:
+        return read("orchestrator", "policy.md").split("## 5.", 1)[1].split("\n## ", 1)[0]
+
+    def test_level_edge_cases_are_explicit(self) -> None:
+        text = self.section_5()
+        self.assertIn("sin repo git", text)
+        self.assertIn("nunca docs que actúan como código", text)
+        self.assertIn("ignora `nivel` y no escala", read("agents", "verificador.md"))
+
+    def test_policy_defines_the_three_levels(self) -> None:
+        text = self.section_5()
+        for needle in ("Nivel 0", "Nivel 1", "Nivel 2", "primer nivel que cumpla", "salvo que ya ejecutaras"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+        self.assertNotIn("riesgo medio+ o >1 archivo", text)
+
+    def test_policy_keeps_recheck_and_records_level_zero(self) -> None:
+        policy = read("orchestrator", "policy.md")
+        self.assertIn("el nivel 0 solo queda aquí", policy.split("## 7.", 1)[1].split("\n## ", 1)[0])
+        self.assertIn("modo: recheck", policy.split("## 3.", 1)[1].split("\n## ", 1)[0])
+
+    def test_verifier_agent_states_levels(self) -> None:
+        text = read("agents", "verificador.md")
+        for needle in ("Nivel:", "escalado", "no repitas la suite", "Sin gate 1 en el brief"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+
+    def test_old_verifier_trigger_is_gone(self) -> None:
+        old = (
+            "medio+ o >1",
+            "medium+ or >1",
+            "medio y >1",
+            "medio o alto, o más de",
+            "el riesgo es medio o alto o cambió",
+        )
+        files = [
+            ROOT / "README.md",
+            ROOT / "README.es.md",
+            ROOT / "docs" / "ARCHITECTURE.md",
+            ROOT / "docs" / "routing.md",
+            ROOT / "docs" / "GLOSSARY.md",
+            ROOT / "docs" / "agents" / "verificador.md",
+            *sorted((ROOT / "docs" / "examples").glob("*.md")),
+        ]
+        for path in files:
+            text = path.read_text(encoding="utf-8")
+            for needle in old:
+                with self.subTest(file=path.name, needle=needle):
+                    self.assertNotIn(needle, text)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 ---
 name: arquitecto
 summary: Diagnostica bugs difíciles o diseña cambios multi-módulo y escribe un plan en tramos.
-model: opus (effort xhigh, maxTurns 45)
+model: opus (effort medium, maxTurns 45)
 source: ~/.claude/agents/arquitecto.md
 ---
 Ficha del worker `arquitecto` del orquestador. Términos en [../GLOSSARY.md](../GLOSSARY.md). Rutas absolutas desde `~/.claude/`.
@@ -33,7 +33,7 @@ Todas las tools salvo `Agent` (`~/.claude/agents/arquitecto.md:7`).
 **Destructivo posible:** tiene `Write`, `Edit` y `Bash`. La limitación a un solo archivo es solo de prompt (`:13`). Lo mitigan los permisos y hooks globales.
 
 ## Por qué este modelo
-Razonamiento más fuerte disponible en la escalera, a effort xhigh; es el más caro, por eso tiene presupuesto de 1 llamada. Ver [../decisions/0002-modelo-por-rol.md](../decisions/0002-modelo-por-rol.md) y [../decisions/0007-presupuesto.md](../decisions/0007-presupuesto.md).
+Razonamiento más fuerte disponible en la escalera, a effort medium (tope de todo worker, ADR 0012); opus es caro, por eso tiene presupuesto de 1 llamada. Ver [../decisions/0002-modelo-por-rol.md](../decisions/0002-modelo-por-rol.md) y [../decisions/0007-presupuesto.md](../decisions/0007-presupuesto.md).
 
 ## Modos de fallo
 | Síntoma | Causa probable | Respuesta del orquestador |

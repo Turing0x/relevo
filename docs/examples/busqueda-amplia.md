@@ -12,7 +12,9 @@ Petición: "¿Dónde se configura el rate limit de carritos y súbelo de 20 a 30
 | 4 | Router | Tabla A, regla 7: OK de `Explore` → sigue en línea con el resultado | `policy.md:21` |
 | 5 | Router | La segunda parte es `implementacion`: 1 archivo, complejidad 1, riesgo bajo → en línea | `policy.md:31` |
 | 6 | Router | Edita la línea. Gate determinista: test y lint verdes | `policy.md:47` |
-| 7 | Router | Riesgo bajo y 1 archivo: sin `verificador` | `policy.md:48` |
-| 8 | Router → usuario | Consolidación final: gates verdes, 1 archivo, sin pendientes, ruta (haiku buscó → opus editó en línea) | `policy.md:66` |
+| 7 | Router | Riesgo bajo y 1 línea de producción cubierta por un test: nivel 0, sin `verificador` | `policy.md:49` |
+| 8 | Router → usuario | Consolidación final: gates verdes, 1 archivo, sin pendientes, ruta (haiku buscó → opus editó en línea) | `policy.md:70` |
 
 Si `Explore` hubiera necesitado leer `.env` para responder, habría devuelto `PENDIENTE_APROBACION` (`~/.claude/agents/Explore.md:12`), y el hook `guard-secrets` habría pedido confirmación ante cualquier `cat .env` (`~/.claude/hooks/guard-secrets`).
+
+Si ningún test cubriera el valor, sería elemento 6 de §6bis y nivel 1.

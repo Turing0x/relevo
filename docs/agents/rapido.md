@@ -21,7 +21,7 @@ El brief. Ve CLAUDE.md de usuario y de proyecto (no declara `omitClaudeMd`), y p
 Texto de ≤8 líneas (`~/.claude/agents/rapido.md:13-17`):
 - `ESTADO: OK | ESCALAR | PENDIENTE_APROBACION: <acción>`
 - `Resultado:` en búsqueda, `archivo:línea` más ≤1 línea; en cambio, rutas tocadas.
-- `Riesgo: <N>[,<N>] (<motivo>) | ninguno`: elementos de la lista de alto riesgo que toca el diff; sin cambios, `ninguno`. Antes de `ninguno` comprueba si toca código compartido usado por comportamiento no pedido (= 3) (`~/.claude/orchestrator/policy.md:56-63`).
+- `Riesgo: <N>[,<N>] (<motivo>) | ninguno`: elementos de la lista de alto riesgo que toca el diff; sin cambios, `ninguno`. Antes de `ninguno` comprueba si toca código compartido usado por comportamiento no pedido (= 3) (`~/.claude/orchestrator/policy.md:60-67`).
 - Detalle largo en `.claude/work/<tarea>.md`; solo la ruta en la salida.
 
 No tiene `AMPLIAR` en su contrato. Schema: [../contracts/rapido-output.schema.json](../contracts/rapido-output.schema.json).
@@ -39,7 +39,7 @@ Trabajo sin juicio de diseño; haiku a effort low es el más barato. Ver [../dec
 |---|---|---|
 | `ESCALAR` | La tarea requiere diseño | Pasa a `implementador` (`~/.claude/orchestrator/policy.md:17`) |
 | `PENDIENTE_APROBACION` | Acción sensible | AskUserQuestion (`~/.claude/orchestrator/policy.md:15`) |
-| Sin línea `Riesgo:` | Incumple el contrato | Riesgo mínimo medio (`~/.claude/orchestrator/policy.md:63`) |
+| Sin línea `Riesgo:` | Incumple el contrato | Riesgo mínimo medio (`~/.claude/orchestrator/policy.md:67`) |
 | `OK` con cambios de código | — | Verificación en dos gates (`~/.claude/orchestrator/policy.md:21`) |
 | Necesita archivos fuera del brief | No tiene `AMPLIAR` en su contrato | No especificado |
 | Llega a 15 turnos | Tarea grande | Vuelve al router con una nota de límite de turnos y sin `ESTADO`; no se dispara `SubagentStop` y no queda línea en `log.jsonl` (E2E con Claude Code 2.1.312, [../audit-pending.md](../audit-pending.md) #2) |
@@ -57,4 +57,4 @@ Riesgo: ninguno
 
 ## Código
 - `~/.claude/agents/rapido.md`
-- `~/.claude/orchestrator/policy.md:11`, `:17`, `:21`, `:29`, `:56-63`
+- `~/.claude/orchestrator/policy.md:11`, `:17`, `:21`, `:29`, `:60-67`

@@ -1,6 +1,6 @@
 # Avances: de 0.1.0 a 0.2.0 y siguientes
 
-Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, cómo se verificó y qué queda pendiente. Las rutas son relativas a la raíz del repo; las de la instalación, absolutas desde `~/.claude/`. Última actualización: 2026-10-30.
+Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, cómo se verificó y qué queda pendiente. Las rutas son relativas a la raíz del repo; las de la instalación, absolutas desde `~/.claude/`. Última actualización: 2026-11-05.
 
 ## Resumen
 
@@ -9,6 +9,7 @@ Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, 
 - Después de la release se llevaron al repo dos cambios que solo existían en la instalación global: el §9 "Relevo de sesión" y el modo multi-repo de `/orchestrator-init`. Están en `[Unreleased]` del [CHANGELOG](../CHANGELOG.md).
 - La instalación de `~/.claude` se reinstaló desde el repo. Ahora la gestiona el instalador y `/orch-doctor` da 9 pass, 0 warn, 0 fail.
 - 2026-10-30: `/orch-stats` mostraba la mitad de las llamadas como `SIN_ESTADO` y al `arquitecto` siempre en el tope de turnos. La causa era una carrera en `orch-telemetry`, no los agentes. Se corrigió el hook, se subieron `maxTurns` (`arquitecto` 45, `verificador` 35) y se reclasificó el log histórico (PR #15).
+- 2026-11-05: el `verificador` pasa a tres niveles según el diff real y todo worker queda con effort máximo `medium`. Por decisión del usuario, este cambio sí relaja una regla (ADR [0012](decisions/0012-verificacion-por-niveles.md)). Rama `feat/verificador-niveles`, sin commit ni PR todavía.
 
 ## Cronología
 
@@ -83,7 +84,7 @@ Hallazgos de comportamiento con Claude Code 2.1.312:
 
 La instalación global se había hecho a mano antes de existir el instalador y tenía dos cambios propios que no estaban en el repo. Reinstalar los habría borrado, así que primero se llevaron al repo:
 
-- **§9 "Relevo de sesión"** (`orchestrator/policy.md:72-73`): en sesiones largas, tras compactar o antes de cerrar con trabajo a medias, el router sobrescribe `HANDOFF.md` (en `.claude/work/` si hay repo git; si no, en la raíz) con lo hecho, lo pendiente, archivos clave, decisiones, preguntas abiertas y el presupuesto §3 (con los contadores del logbook si existe). Una sesión nueva lo lee antes de actuar. La línea 2 de la política dice a los workers que ignoren §9. Va al final para no mover ninguna cita `policy.md:N`.
+- **§9 "Relevo de sesión"** (`orchestrator/policy.md:76-77`): en sesiones largas, tras compactar o antes de cerrar con trabajo a medias, el router sobrescribe `HANDOFF.md` (en `.claude/work/` si hay repo git; si no, en la raíz) con lo hecho, lo pendiente, archivos clave, decisiones, preguntas abiertas y el presupuesto §3 (con los contadores del logbook si existe). Una sesión nueva lo lee antes de actuar. La línea 2 de la política dice a los workers que ignoren §9. Va al final para no mover ninguna cita `policy.md:N`.
 - **`/orchestrator-init`** (`commands/orchestrator-init.md`) detecta tres modos:
   - repo git: pasos 1-6 en la raíz git;
   - raíz multi-repo (sin git, con subcarpetas git a 1 o 2 niveles): pasos 1-6 en cada subrepo y después el paso 7 en la raíz, con `orchestrator.md`, `CLAUDE.md` y `settings.json` de raíz y rutas sensibles con prefijo `<subrepo>/`;
@@ -163,6 +164,30 @@ Contenido instalado:
 | `~/.claude/settings.json` | Permisos y registro de hooks |
 | `~/.claude/CLAUDE.md` | Importa la política |
 
+## Verificación por niveles (2026-11-05)
+
+### Qué
+
+- Política §5.2: el `verificador` ya no se lanza por "riesgo medio+ o >1 archivo". Tras el gate 1 en verde, el router decide con el diff real: nivel 0 (sin verificador), nivel 1 (foco) o nivel 2 (completo). Tests y docs descriptivas no cuentan como producción; el recheck no cambia.
+- El brief del `verificador` lleva `nivel`, `motivo` (slug) y el resultado del gate 1; el agente no repite la suite. El reporte añade la línea `Nivel:`.
+- Effort máximo `medium` en todo worker: `verificador` high → medium, `arquitecto` xhigh → medium, `implementador` high → medium (comprobado por `EffortCapTests`).
+- Telemetría: `nivel` y `motivo` en los registros del `verificador`. `/orch-stats` muestra la mediana de duración y un bloque por nivel.
+
+### Por qué
+
+Petición del usuario: garantizar los verificadores solo cuando son necesarios, decidir cuán exhaustiva debe ser cada revisión y fijar siempre opus medium, nunca alto ni siquiera para sonnet. Datos del log (en [ADR 0012](decisions/0012-verificacion-por-niveles.md)): el `verificador` consumía ≈240 min, el 26 % del tiempo de workers, y repetía la suite que el gate ya había pasado (17 % de su tiempo). La muestra es pequeña y orienta los cortes, no los prueba.
+
+> A diferencia de las fases anteriores, este cambio sí relaja una regla, por decisión explícita del usuario. La restricción de "solo añadir" de la sección "Cómo se trabajó" describe las fases 1 a 3.
+
+### Verificación
+
+- `make check` sobre el árbol de trabajo (T1 y T2) en verde: lint, mypy, 311 tests OK (10 skipped, 3 expected failures), routing sincronizado, enlaces de 48 archivos Markdown, 8 schemas y fichas de 6 agentes.
+- `grep -rnE "effort (high|xhigh)|, high\)" docs README.md README.es.md` solo devuelve la línea histórica fechada de `docs/agents/verificador.md` (2026-10-22).
+- Nuevo test `test_old_verifier_trigger_is_gone`: el disparador antiguo no aparece en README, ARCHITECTURE, routing, GLOSSARY, la ficha del `verificador` ni los ejemplos.
+- `verificador` nivel 2 sobre el diff completo: APROBADO con 5 advertencias, corregidas antes del commit.
+- Recheck de esos arreglos: RECHAZADO (implementación), porque la nueva regex de `Nivel:` en `orch-telemetry` dejaba de reconocer formas en negrita. Corregida y con test.
+- Recheck final (ciclo 2 de 2): APROBADO.
+
 ## Cómo se trabajó
 
 - Cada fase fue en su propia rama y PR. Las fases 2 y 3 corrieron en sesiones aparte de Claude Code, cada una en su worktree.
@@ -176,12 +201,13 @@ Estado de los gates en `main` (`c8cdc7e`): 284 tests OK (10 skipped, 3 expected 
 
 | Tema | Detalle |
 |---|---|
-| Release 0.2.1 | `[Unreleased]` ya contiene §9, `/orchestrator-init` multi-repo, el reintento de `orch-telemetry` y `maxTurns` 45/35 |
+| Release 0.2.1 | `[Unreleased]` ya contiene §9, `/orchestrator-init` multi-repo, el reintento de `orch-telemetry`, `maxTurns` 45/35 y, si se mergea, la verificación por niveles con effort `medium` |
 | Copias locales | `~/.claude/orchestrator/log.jsonl.bak` y `~/.claude/orchestrator/orch-telemetry.bak` se pueden borrar cuando `/orch-stats` lleve unos días sin `SIN_ESTADO` nuevos |
 | Vigilar `SIN_ESTADO` | Si reaparece con el reintento, los 2,5 s no bastan: valorar leer el estado del payload de `SubagentStop` si Claude Code llega a incluir el handback |
 | `/orch-doctor` en raíces multi-repo | `doctor.py` da por hecho una raíz git (`gitignore:work`, `claude-md:import`) y puede avisar sin motivo en una raíz multi-repo sin git |
 | Dependabot | PR [#9](https://github.com/Turing0x/relevo/pull/9) (python-dev-tools) y [#10](https://github.com/Turing0x/relevo/pull/10) (github-actions) abiertos |
 | audit-pending | #5 a medias (timeout de red e interrupción por el usuario) y #7 (clasificación en línea con opus frente a `clasificador` con otro modelo), a comprobar a mano |
-| Medir | Comparar `/orch-stats` dentro de 30 días: llamadas a opus por tarea, `tope` y `SIN_ESTADO` |
+| Medir | Comparar `/orch-stats` dentro de 30 días: llamadas a opus por tarea, `tope` y `SIN_ESTADO`; además rechazos por nivel del `verificador` y el efecto de effort `medium` en `arquitecto` e `implementador` |
+| Verificación por niveles | Commit y PR; reinstalar en `~/.claude` (hasta entonces sigue vigente la política antigua) |
 | Idea abierta | Las lentes 4R como foco dentro del brief del `verificador` (una sola llamada con más dirección) |
 | Limpieza local | El worktree `.claude/worktrees/elegant-haibt-070da9` de la fase 2 sigue en disco; borrarlo necesita aprobación |

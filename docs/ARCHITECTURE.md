@@ -7,7 +7,7 @@ Este archivo cubre qué es el orquestador, sus componentes, el recorrido de una 
 El orquestador reparte el trabajo de una sesión de Claude Code entre tres familias de modelos (haiku, sonnet, opus) según el tipo de tarea. Aporta tres cosas que un único agente no da:
 
 - **Aislamiento de contexto.** Las lecturas ruidosas (búsquedas amplias, logs, salida de tests) ocurren en un worker y al router solo vuelve un reporte corto (`~/.claude/orchestrator/policy.md:7`, `:44`).
-- **Revisión independiente.** Un `verificador` con contexto limpio revisa el trabajo sin ver el razonamiento de quien lo hizo (`~/.claude/orchestrator/policy.md:48-49`).
+- **Revisión independiente.** Un `verificador` con contexto limpio revisa el trabajo sin ver el razonamiento de quien lo hizo (`~/.claude/orchestrator/policy.md:48-53`).
 - **Paralelismo real** cuando los tramos tocan archivos disjuntos (`~/.claude/orchestrator/policy.md:30`, `:37`).
 
 Su naturaleza: **no es un programa.** Es texto en lenguaje natural que el modelo de la sesión principal interpreta (`~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`) importa `~/.claude/orchestrator/policy.md`). Claude Code solo impone por sí mismo los permisos y los hooks (ver [Invariantes](#invariantes)).
@@ -59,7 +59,8 @@ flowchart TD
     E & RA & I -->|reporte ESTADO| R
     R -->|código terminado| G1[gate determinista: test/lint/build]
     G1 -->|rojo| R
-    G1 -->|verde y riesgo medio+ o >1 archivo| V[verificador · opus]
+    G1 -->|verde, nivel 1 o 2| V[verificador · opus]
+    G1 -->|verde, nivel 0| R
     V -->|VEREDICTO + Causa| R
     R -->|consolidación final| U
     H1[[block-force-push]] -.bloquea.-> R & RA & I & A & V
@@ -76,11 +77,11 @@ Tarea ilustrativa: "añade validación de email al endpoint de registro" en un p
 | 1 | Router | modelo de la sesión | Chat completo, `~/.claude/CLAUDE.md`, la política, CLAUDE.md del proyecto y `.claude/orchestrator.md` | — | `~/.claude/CLAUDE.md` (línea `@orchestrator/policy.md`) |
 | 2 | Router clasifica en línea (sesión opus) o lanza `clasificador` | opus en línea / haiku | `clasificador`: solo la petición y hasta 3 archivos; sin CLAUDE.md (`omitClaudeMd: true`) | JSON con `tipo`, `riesgo`, `complejidad`, `ruta` | `~/.claude/orchestrator/policy.md:10-11`, `~/.claude/agents/clasificador.md:8-15` |
 | 3 | Router aplica tabla B: `implementacion`, 3 archivos → `implementador` | — | — | — | `~/.claude/orchestrator/policy.md:31` |
-| 4 | `implementador` | sonnet, effort high | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes, `Riesgo:` | `~/.claude/orchestrator/policy.md:42`, `~/.claude/agents/implementador.md` |
+| 4 | `implementador` | sonnet, effort medium | Brief (sin historial de chat), CLAUDE.md de usuario y proyecto | `ESTADO: OK`, archivos, verificación, pendientes, `Riesgo:` | `~/.claude/orchestrator/policy.md:42`, `~/.claude/agents/implementador.md` |
 | 5 | Router: gate determinista con el comando de test/lint/build del proyecto | — | — | Verde o rojo | `~/.claude/orchestrator/policy.md:47` |
-| 6 | `verificador` (riesgo medio y >1 archivo) | opus, effort high | Petición original literal, criterios, archivos, `base_commit` y `modo`; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos | `~/.claude/orchestrator/policy.md:48-49`, `~/.claude/agents/verificador.md` |
-| 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:66` |
-| 8 | Hook `orch-telemetry` en cada fin de worker | — | Transcript del worker | Una línea en `log.jsonl` | `~/.claude/hooks/orch-telemetry:76-94` |
+| 6 | `verificador` (nivel 1: riesgo medio, ≤200 líneas) | opus, effort medium | Petición original literal, criterios, archivos, `base_commit`, `modo`, `nivel` con `motivo` y resultado del gate 1; nunca el razonamiento del implementador | `VEREDICTO`, `Causa`, hallazgos, comandos, `Nivel` | `~/.claude/orchestrator/policy.md:48-53`, `~/.claude/agents/verificador.md` |
+| 7 | Router: `APROBADO` → consolidación final | — | — | ≤4 líneas: gates, archivos, pendientes, ruta usada | `~/.claude/orchestrator/policy.md:21`, `:70` |
+| 8 | Hook `orch-telemetry` en cada fin de worker | — | Transcript del worker | Una línea en `log.jsonl` | `~/.claude/hooks/orch-telemetry:82-102` |
 
 Si el paso 6 devuelve `RECHAZADO`, ver [routing.md](routing.md#paso-2-tabla-a-respuestas-de-worker-y-acciones-sensibles). Ejemplos completos en [examples/](examples/implementacion-con-rechazo.md).
 
@@ -92,17 +93,18 @@ La columna "Impuesto por" distingue lo que Claude Code garantiza de lo que depen
 |---|---|---|
 | Ningún worker lanza subagentes. | Claude Code: `disallowedTools: Agent` o lista `tools` sin `Agent`, y `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (el E2E comprueba que con profundidad 1 un subagente sin restricciones no recibe la herramienta `Agent`); `/orch-doctor` (`env`) avisa si la profundidad no es 1 | `~/.claude/agents/*.md:7`, `~/.claude/settings.json:3` |
 | Cada worker usa siempre su modelo, effort y maxTurns del frontmatter. | Claude Code (el `model:` del frontmatter tiene prioridad sobre `CLAUDE_CODE_SUBAGENT_MODEL`) | `~/.claude/agents/*.md:4-6` |
+| Ningún worker supera effort `medium`. | CI: `EffortCapTests` sobre los archivos del repo; una instalación o un agente de proyecto pueden divergir | `~/.claude/agents/*.md:5`, `~/.claude/orchestrator/policy.md:37` |
 | `clasificador` y `Explore` nunca ven CLAUDE.md. | Claude Code (`omitClaudeMd: true`) | `~/.claude/agents/clasificador.md:8`, `~/.claude/agents/Explore.md:8` |
 | `clasificador` nunca ejecuta comandos ni edita. | Claude Code (`tools: Read, Grep, Glob`) | `~/.claude/agents/clasificador.md:7` |
 | Nunca se ejecuta un force push ni un borrado remoto de rama vía Bash. | Claude Code: `permissions.deny` + hook `block-force-push` (exit 2) | `~/.claude/settings.json:7-10`, `~/.claude/hooks/block-force-push:40-43` |
 | Siempre se pide confirmación humana antes de una referencia explícita a `.env`, claves o credenciales en Bash, Grep o Read. | Claude Code: hook `guard-secrets` + `Read(**/.env*)`/`Edit(**/.env*)` en `ask` | `~/.claude/hooks/guard-secrets`, `~/.claude/settings.json:51`, `:55` |
-| Se registra una línea de telemetría cuando un worker con nombre y transcript termina con un reporte. No hay línea si se detiene por `maxTurns` o por un error de API (no se dispara `SubagentStop`), ni en `claude -p`, que sale antes de que corra el hook `async` (E2E con Claude Code 2.1.312). | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:81-91`, `~/.claude/hooks/orch-telemetry:80-81` |
+| Se registra una línea de telemetría cuando un worker con nombre y transcript termina con un reporte. No hay línea si se detiene por `maxTurns` o por un error de API (no se dispara `SubagentStop`), ni en `claude -p`, que sale antes de que corra el hook `async` (E2E con Claude Code 2.1.312). | Claude Code: hook `SubagentStop` | `~/.claude/settings.json:81-91`, `~/.claude/hooks/orch-telemetry:86-87` |
 | `Explore`, `verificador` nunca editan archivos. | Solo prompt: ambos tienen `Bash`, que puede escribir | `~/.claude/agents/Explore.md:7`, `:10`; `~/.claude/agents/verificador.md:7`, `:12` |
 | Nunca se lanza `verificador` sobre un gate determinista en rojo. | Solo política | `~/.claude/orchestrator/policy.md:47` |
-| El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:49` |
+| El `verificador` nunca recibe el razonamiento del implementador. | Solo política | `~/.claude/orchestrator/policy.md:53` |
 | Nunca más de 1 llamada a `arquitecto` ni más de 2 ciclos por tarea sin aprobación. | Solo política; el contador vive en el logbook `estado.md` y `orch-resume` lo reinyecta tras compactar o reanudar | `~/.claude/orchestrator/policy.md:35-36`, `:38` |
-| Las acciones sensibles siempre pasan por AskUserQuestion. | Solo política, salvo lo cubierto por permisos y hooks | `~/.claude/orchestrator/policy.md:15`, `:53-54` |
-| Una config de proyecto nunca relaja la política. | Solo política | `~/.claude/orchestrator/policy.md:69` |
+| Las acciones sensibles siempre pasan por AskUserQuestion. | Solo política, salvo lo cubierto por permisos y hooks | `~/.claude/orchestrator/policy.md:15`, `:57-58` |
+| Una config de proyecto nunca relaja la política. | Solo política | `~/.claude/orchestrator/policy.md:73` |
 
 ## Estado y memoria entre pasos
 
