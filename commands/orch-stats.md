@@ -3,6 +3,7 @@ description: Resume la telemetría del orquestador y propone ajustes del router
 argument-hint: "[días, por defecto 30]"
 ---
 Ejecuta `python3 ~/.claude/orchestrator/stats.py $ARGUMENTS` y muestra la tabla tal cual.
+`$~` es una estimación a precio de lista (tabla `PRICES` de `stats.py`; caché escrita a 2× entrada (TTL 1 h); `out~` sin thinking, así que infraestima). Registros de modelos fuera de la tabla no suman y se cuentan en la línea final. El bloque del verificador agrupa por nivel y modelo; `escalado` cuenta los registros con motivo `escalado`.
 Después, máx 3 líneas de ajustes concretos solo si los datos los justifican (≥5 llamadas del agente), p.ej.:
 - `tope` > 10 % de llamadas → subir `maxTurns` o partir tareas. Ojo: un worker que se detiene por `maxTurns` no deja línea (no hay `SubagentStop`), así que `tope` se queda corto.
 - ESCALAR > 20 % en un agente → el router le asigna tareas demasiado difíciles.

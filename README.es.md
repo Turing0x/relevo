@@ -106,7 +106,7 @@ El prefijo por defecto es `~/.claude`. No se escribe nada fuera de él.
 | `agents/*.md` (6 workers) | `agents/` | Se copian. Si el nombre choca con un agente ajeno, aborta salvo `--force` |
 | `hooks/*` | `hooks/` | Se copian con modo `0755` |
 | `commands/*.md` | `commands/` | Se copian |
-| `orchestrator/{policy.md,project-template.md,stats.py,doctor.py,routing.json}`, `scripts/render_routing.py` | `orchestrator/` | Se copian (`doctor.py` reutiliza `render_routing.py` y `routing.json` en su comprobación `routing:sync`) |
+| `orchestrator/{policy.md,project-template.md,stats.py,doctor.py,statusline.py,routing.json}`, `scripts/render_routing.py` | `orchestrator/` | Se copian (`doctor.py` reutiliza `render_routing.py` y `routing.json` en su comprobación `routing:sync`) |
 | `docs/**` | `orchestrator/docs/**` | Se copian |
 | `templates/settings.example.json` | `settings.json` | Se **fusiona**, nunca se sobrescribe (ver abajo) |
 | `templates/CLAUDE.md.example` | `CLAUDE.md` | Se añade como un bloque entre `<!-- relevo:begin -->` y `<!-- relevo:end -->`, salvo que el archivo ya tenga una línea `@orchestrator/policy.md` |
@@ -116,9 +116,19 @@ Lo que añade la fusión de settings, tomado de [`templates/settings.example.jso
 - `env`: `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (los workers no pueden lanzar subagentes) y `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` (modelo por defecto de los subagentes sin `model:`). Si ya tienes alguna con otro valor, se conserva el tuyo y el instalador avisa.
 - `permissions.deny`: 2 reglas para `git push --force` / `-f`.
 - `permissions.ask`: 44 reglas. Hacen que Claude Code pregunte antes de `git push`, instalar dependencias (`npm`, `pip`, `brew`, `npx`...), desplegar, `rm -r`, `git reset --hard`, editar `.env*` y los hooks, y similares. Se aplican a **todos** tus proyectos.
-- `hooks`: `block-force-push` (PreToolUse sobre Bash), `guard-secrets` (PreToolUse sobre Bash, Grep y Read), `orch-telemetry` (SubagentStop, asíncrono) y `orch-resume` (SessionStart con los matchers `compact` y `resume`, timeout de 5 s: imprime el logbook de la tarea abierta `.claude/work/<tarea>/estado.md` para que los contadores de presupuesto sobrevivan a una compactación).
+- `hooks`: `block-force-push` (PreToolUse sobre Bash), `guard-secrets` (PreToolUse sobre Bash, Grep y Read), `orch-telemetry` (SubagentStop, asíncrono) y `orch-resume` (SessionStart con los matchers `compact` y `resume`, timeout de 5 s: imprime el logbook de la tarea abierta `.claude/work/<tarea>/estado.md` para que los contadores de presupuesto sobrevivan a una compactación). `trim-test-output` se copia a `hooks/` pero no se registra: es opt-in (ver «Opcional: recortar la salida de tests»).
 
 El resto de claves de tu configuración no se toca, y la fusión es idempotente. Antes de cambiar nada, el instalador guarda los archivos previos en `<prefix>/.relevo-backups/<marca-de-tiempo>/`. Si una copia es idéntica a otra anterior (mismo checksum), reutiliza esa; se conservan las 5 usadas más recientemente, más las fijadas y las que guardan un original reemplazado con `--force`. Si `settings.json` tiene comentarios (JSONC) o claves duplicadas, el instalador para sin escribir nada, porque al reescribirlo como JSON se perderían. Lo que añadió queda registrado en `<prefix>/orchestrator/.relevo-manifest.json`, que usa el desinstalador para deshacer exactamente eso. Lee los [hooks](hooks/) y la plantilla antes de instalar; `--dry-run` muestra un diff de `settings.json` y `CLAUDE.md` sin escribir.
+
+### Opcional: recortar la salida de tests
+
+`hooks/trim-test-output` se instala pero está apagado por defecto. Activo, reescribe comandos de test conocidos (`make check`, `pytest`, `python3 -m unittest`, `npm test`, `go test`, `cargo test`) para que al modelo solo lleguen los fallos y la cola de una salida de más de 120 líneas; el log completo va a `$TMPDIR/relevo-test-*.log` y el exit code no cambia. Antepón `RELEVO_FULL_OUTPUT=1` al comando para la salida íntegra, o pon `RELEVO_TRIM_DISABLE=1` en `env` para desactivarlo. Para activarlo, añade esto a `PreToolUse` en `~/.claude/settings.json`:
+
+```json
+{"matcher": "Bash", "hooks": [{"type": "command", "command": "~/.claude/hooks/trim-test-output", "timeout": 5}]}
+```
+
+Aviso de permisos: Claude Code evalúa los permisos sobre el comando **ya reescrito**, y un comando reescrito pide aprobación aunque `permissions.allow` cubra el original (observado, incluso con un `allow` genérico de `Bash`); las reglas `deny` siguen aplicando. En modo auto decide el clasificador de permisos en vez de un prompt. Actívalo solo si aceptas esos prompts. Ver [ADR 0015](docs/decisions/0015-recorte-de-salida-de-tests.md).
 
 ## Ejemplo de uso
 
@@ -138,6 +148,16 @@ Si el paso 6 devuelve `RECHAZADO`, la política re-briefea al implementador o pi
 **Una acción sensible.** «Sube los cambios y despliega a producción.» El router debe parar y preguntarte, indicando los comandos exactos, su alcance y cómo deshacerlos. Si apruebas el push, Claude Code vuelve a preguntar porque `Bash(git push:*)` está en `permissions.ask`, y `block-force-push` solo lo deja pasar si no es un force push. Un force push lo deniegan `permissions.deny` y el hook aunque lo apruebes en el chat. Detalles y variantes: [`docs/examples/accion-sensible.md`](docs/examples/accion-sensible.md).
 
 **Telemetría.** `/orch-stats` ejecuta `stats.py` e imprime una tabla por agente. La salida está en español porque sale directamente del código: la cabecera dice `Últimos 30 días — N llamadas`, seguida de columnas como `agente`, `modelo`, `turnos~`, `tope` y `estados`.
+
+## Status line opcional
+
+El instalador copia `statusline.py` pero nunca toca `statusLine` en tu `settings.json`. Para activarla, añádela tú. Imprime `ctx NN% · cache: hit NN% Nm|frío` y omite el segmento cuyo campo falte en la entrada:
+
+```json
+"statusLine": {"type": "command", "command": "python3 ~/.claude/orchestrator/statusline.py"}
+```
+
+Para conservar una status line existente (por ejemplo la de caveman), envuélvela: `python3 ~/.claude/orchestrator/statusline.py --wrap '<tu comando>'`. El comando envuelto recibe el mismo stdin, se ejecuta sin shell con timeout de 2 s, y se conserva su salida con el segmento de relevo añadido.
 
 ## Qué NO es / limitaciones
 

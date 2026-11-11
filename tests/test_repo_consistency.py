@@ -310,7 +310,7 @@ class PolicySyncTests(unittest.TestCase):
         assert row is not None
         line = next(x for x in read("agents", "clasificador.md").splitlines() if x.strip().startswith("busqueda →"))
         self.assertIn(f"en_linea si {row.group(1)};", line)
-        for text in ("1 lote de ≤3 llamadas (~10k tokens)", ">5 búsquedas secuenciales"):
+        for text in ("1 lote de ≤3 llamadas (~5k tokens)", ">3 búsquedas secuenciales"):
             with self.subTest(text=text):
                 self.assertIn(text, row.group(0))
                 self.assertIn(text, line)
@@ -542,6 +542,43 @@ class VerifierLevelTests(unittest.TestCase):
             for needle in old:
                 with self.subTest(file=path.name, needle=needle):
                     self.assertNotIn(needle, text)
+
+
+class CostPolicyTests(unittest.TestCase):
+    def test_table_b_has_the_cost_thresholds(self) -> None:
+        policy = read("orchestrator", "policy.md")
+        needles = ("≤2 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~5k tokens)", ">3 búsquedas secuenciales")
+        for needle in (*needles, "salida ≤80 líneas"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, policy)
+                self.assertIn(needle, read("agents", "clasificador.md"))
+
+    def test_sonnet_only_for_level_1_experiment(self) -> None:
+        section = read("orchestrator", "policy.md").split("## 5.", 1)[1].split("\n## ", 1)[0]
+        needles = ("(opus; contexto limpio", "ADR 0014", "escalado", "no consume ciclo", "recheck", "siempre en opus")
+        for needle in (*needles, "verificador_modelo: opus"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, section)
+        self.assertIn('nivel 1 en modo `normal` se lanza con `model: "sonnet"`', section)
+        policy = read("orchestrator", "policy.md")
+        self.assertEqual(policy.count("sonnet"), section.count("sonnet") + policy.count("`implementador` (sonnet)"))
+
+    def test_project_template_can_disable_the_experiment(self) -> None:
+        self.assertIn("verificador_modelo: opus", read("orchestrator", "project-template.md"))
+
+    def test_compact_instructions_keep_the_logbook_data(self) -> None:
+        policy = read("orchestrator", "policy.md")
+        section = policy.split("## 10. Compact instructions", 1)[1]
+        for needle in ("estado.md", "base_commit", "arquitecto", "ciclos", "petición", "veredicto", "siguiente paso"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, section)
+        self.assertIn("Sigue solo tu brief, §4, §6 y §6bis", policy)
+
+    def test_session_close_suggests_clear(self) -> None:
+        section = read("orchestrator", "policy.md").split("## 9.", 1)[1].split("\n## ", 1)[0]
+        for needle in ("/rename", "/clear", "en vez de `/compact`"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, section)
 
 
 class ImplementerQualityTests(unittest.TestCase):

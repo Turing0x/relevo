@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+# PreToolUse(Bash): reescribe comandos de test/lint/build conocidos a `<python> <este hook> --run -- <argv>`
+# para que al modelo solo llegue el resumen de fallos y la cola de una salida larga (log completo en $TMPDIR).
+# Nunca emite permissionDecision ni sale con 2: solo cambia la entrada y, ante la duda, no toca nada.
+# En modo --run el exit code es exactamente el del hijo (señal n -> 128+n); sin pipeline, no depende de pipefail.
+import json, os, re, shlex, signal, subprocess, sys, tempfile, time
+
+FORBIDDEN = re.compile(r"""[;&|<>$`(){}\n\r'"\\*~]""")
+ARG = re.compile(r"[A-Za-z0-9_./:=,@+-]+")
+PREFIXES = (
+    ("pytest",), ("py.test",),
+    ("python", "-m", "pytest"), ("python", "-m", "unittest"),
+    ("python3", "-m", "pytest"), ("python3", "-m", "unittest"),
+    (".venv/bin/python", "-m", "pytest"), (".venv/bin/python", "-m", "unittest"),
+    ("uv", "run", "pytest"),
+    ("npm", "test"), ("pnpm", "test"), ("yarn", "test"), ("bun", "test"),
+    ("npm", "run", "test"), ("pnpm", "run", "test"),
+    ("go", "test"), ("cargo", "test"),
+)
+MAKE_TARGETS = ("check", "test", "lint", "typecheck")
+MAX_LINES, TAIL_FAIL, TAIL_OK, MAX_MATCHES = 120, 60, 30, 150
+INTERESTING = re.compile(r"FAIL|ERROR|Error|error:|Traceback|AssertionError|panic:|^E  |failed|✗")
+
+
+def matches(cmd):
+    try:
+        toks = shlex.split(cmd)
+    except ValueError:
+        return None
+    if not toks or FORBIDDEN.search(cmd):
+        return None
+    for t in toks:
+        if not ARG.fullmatch(t) or ".env" in t or ".." in t.split("/") or "watch" in t.lower():
+            return None
+    if toks[0] == "make":
+        ok = len(toks) > 1 and toks[1] in MAKE_TARGETS and all(t.startswith("-") for t in toks[2:])
+        return toks if ok else None
+    return toks if any(tuple(toks[:len(p)]) == p for p in PREFIXES) else None
+
+
+def hook():
+    if os.environ.get("RELEVO_TRIM_DISABLE") == "1":
+        return
+    tool_input = json.load(sys.stdin).get("tool_input")
+    cmd = tool_input.get("command") if isinstance(tool_input, dict) else None
+    toks = matches(cmd) if isinstance(cmd, str) else None
+    if toks is None:
+        return
+    new = shlex.join([sys.executable, os.path.realpath(__file__), "--run", "--", *toks])
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                              "updatedInput": {**tool_input, "command": new}}}))
+
+
+def prune_old_logs(directory):
+    # Best-effort: solo los logs propios (mismo prefijo y directorio) de más de 24 h.
+    cutoff = time.time() - 24 * 3600
+    for name in os.listdir(directory):
+        if name.startswith("relevo-test-") and name.endswith(".log"):
+            try:
+                path = os.path.join(directory, name)
+                if os.lstat(path).st_mtime < cutoff:
+                    os.unlink(path)
+            except OSError:
+                pass
+
+
+def summarize(lines, code):
+    if len(lines) <= MAX_LINES:
+        return lines
+    try:
+        prune_old_logs(tempfile.gettempdir())
+    except OSError:
+        pass
+    fd, path = tempfile.mkstemp(prefix="relevo-test-", suffix=".log")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    out = []
+    if code != 0:
+        shown, seen, count = set(), set(), 0
+        for i, line in enumerate(lines):
+            if INTERESTING.search(line) and line not in seen and count < MAX_MATCHES:
+                seen.add(line)
+                count += 1
+                shown.update(j for j in (i - 1, i, i + 1) if 0 <= j < len(lines))
+        out = [lines[i] for i in sorted(shown)]
+    out += lines[-(TAIL_OK if code == 0 else TAIL_FAIL):]
+    out.append(f"[relevo] salida recortada: {len(lines)} líneas, exit {code}, completa en {path}")
+    return out
+
+
+def run(argv):
+    try:
+        child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except OSError as e:
+        print(f"{argv[0]}: {e.strerror}")
+        return 127 if isinstance(e, FileNotFoundError) else 126
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda n, _f: child.send_signal(n))
+    data, _ = child.communicate()
+    code = child.returncode
+    code = 128 - code if code < 0 else code
+    text = data.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    try:
+        lines = summarize(lines, code)
+    except Exception:  # sin log no hay recorte: la salida íntegra y el exit del hijo mandan
+        pass
+    print("\n".join(lines), flush=True)
+    return code
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["--run"]:
+        sys.exit(run(sys.argv[3:] if sys.argv[2:3] == ["--"] else sys.argv[2:]))
+    try:
+        hook()
+    except Exception:
+        pass
+    sys.exit(0)

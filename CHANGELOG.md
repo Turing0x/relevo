@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Table B thresholds (`orchestrator/routing.json`, regenerated in the policy and `clasificador`): `busqueda` stays inline only with ≤2 known files and ~5k tokens (was ≤3 and ~10k), and goes to `Explore` after >3 sequential searches (was >5); `mecanica` stays inline with output ≤80 lines (was "short"). See ADR 0014.
+- `arquitecto` `maxTurns` 45 → 35, and its prompt asks for an early plan skeleton in `.claude/work/plan-<task>.md`.
+- Experiment: the level 1 `verificador` in `normal` mode runs with `model: "sonnet"` and escalates to opus (`Nivel: 2 (escalado)`, no cycle used); level 2, recheck and everything §5.2 sends to level 2 stay on opus, and `verificador_modelo: opus` in a project's `orchestrator.md` turns it off. It has a revert criterion at 30 days. See ADR 0014.
+- Policy §9: after a closed, unrelated task the router suggests `/rename` and `/clear` instead of `/compact`.
 - `maxTurns`: `arquitecto` 30 → 45 and `verificador` 25 → 35 (agents, ADR 0002 and agent cards).
 - The `verificador` no longer runs on "risk medium+ or >1 file". The router picks a level from the real diff after the deterministic gate: 0 (no reviewer), 1 (focused) or 2 (full). See ADR 0012.
 - The `verificador` receives the gate result and runs only targeted tests when it suspects something; the §5.3 router check is skipped if the router already ran that command on the same state.
@@ -20,6 +24,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `trim-test-output` hook (opt-in: installed but not registered; add the `PreToolUse` Bash entry to enable): rewrites known test/lint/build commands to a wrapper that keeps the exit code and returns only the failure lines and the tail of outputs over 120 lines (full log in `$TMPDIR`). It never sets a permission decision. End-to-end result: Claude Code evaluates permissions on the rewritten command, which asks for approval even if `allow` covers the original, hence opt-in. See ADR 0015.
+- `/orch-stats` shows an estimated cost (`$~` per agent, total, and the `verificador` by level and model) from a single price table.
+- `/orch-doctor` check `claude:version` and an `env` warning for `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.
+- Policy §10 "Compact instructions", and an optional `statusline.py` (never registered by the installer).
 - `implementador` quality rules (simplicity, comments, efficiency, steps, final review of the diff) and a non-blocking `[advertencia]` from the level 2 `verificador` for avoidable complexity visible in the diff. See ADR 0013.
 - Telemetry: `nivel` and `motivo` (a slug, never free text) on `verificador` records, read from a new `Nivel:` report line.
 - Policy §9 "Relevo de sesión": in long sessions, after a compaction or before closing with work left, the router overwrites `HANDOFF.md` (done, pending, key files, decisions, open questions, §3 budget); a new session reads it before acting. Workers ignore §9.

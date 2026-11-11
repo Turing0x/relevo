@@ -25,8 +25,8 @@ riesgo final = max(clasificador, tu juicio, disparadores de §6 por palabra clav
 | Tipo | En línea si… | Si no |
 |---|---|---|
 | revision | — | `verificador` |
-| busqueda | ≤3 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~10k tokens) | `Explore` (haiku); también si en línea ya van >5 búsquedas secuenciales |
-| mecanica (incluye ejecutar tests/build y acciones de §6 puras) | ≤2 archivos y salida corta | `rapido` (haiku) |
+| busqueda | ≤2 archivos conocidos y cabe en 1 lote de ≤3 llamadas (~5k tokens) | `Explore` (haiku); también si en línea ya van >3 búsquedas secuenciales |
+| mecanica (incluye ejecutar tests/build y acciones de §6 puras) | ≤2 archivos y salida ≤80 líneas (tests/build: salida recortada solo si `trim-test-output` está activado) | `rapido` (haiku) |
 | arquitectura, bug_dificil | — | `arquitecto` → plan → `implementador` por tramo (paralelo si archivos disjuntos) |
 | implementacion (incluye escribir tests) | ≤2 archivos, complejidad ≤2, riesgo no alto | complejidad ≥4 o >5 archivos → como arquitectura; resto → `implementador` (sonnet) |
 <!-- relevo:routing:end -->
@@ -45,7 +45,7 @@ Salida: reporte corto (ESTADO, VEREDICTO o JSON según agente). Detalle largo �
 
 ## 5. Verificación (dos gates)
 1. **Determinista** (si hay código): test/lint/build de `.claude/orchestrator.md` o del stack. Rojo → vuelve al mismo ejecutor, worker o en línea (cuenta como ciclo); nunca `verificador` sobre rojo.
-2. **`verificador`** (opus; contexto limpio: nunca la instancia que implementó, vale aunque implementara opus). Nivel según el diff real tras gate 1 verde (`git diff --stat <base_commit>` + archivos sin seguimiento; sin repo git, contar archivos tocados y, si no se puede medir, nivel 1 como mínimo); tests y docs descriptivas no cuentan como producción. Riesgo final alto (1-5 de §6bis), salida de `arquitecto`, replan, ruta "verificador obligatorio" del proyecto o tarea `revision` → nivel 2. Si no, el primer nivel que cumpla:
+2. **`verificador`** (opus; contexto limpio: nunca la instancia que implementó, vale aunque implementara opus). Experimento con reversión (ADR 0014): nivel 1 en modo `normal` se lanza con `model: "sonnet"`; si devuelve `Nivel: 2 (escalado)`, se descarta ese veredicto (no consume ciclo) y se relanza en opus nivel 2 con `motivo: escalado`. Nivel 2, recheck y todo lo que §5.2 manda a nivel 2 van siempre en opus; un `.claude/orchestrator.md` con `verificador_modelo: opus` anula el experimento. Reversión a opus a los 30 días, o antes si un defecto llega a `main` en un diff aprobado por nivel 1 sonnet, ≥30% de los nivel 1 sonnet acaban en `escalado`, o >10% salen sin estado o fuera de contrato; con n<10 a los 30 días, prorrogar. Nivel según el diff real tras gate 1 verde (`git diff --stat <base_commit>` + archivos sin seguimiento; sin repo git, contar archivos tocados y, si no se puede medir, nivel 1 como mínimo); tests y docs descriptivas no cuentan como producción. Riesgo final alto (1-5 de §6bis), salida de `arquitecto`, replan, ruta "verificador obligatorio" del proyecto o tarea `revision` → nivel 2. Si no, el primer nivel que cumpla:
    - **Nivel 0, sin verificador:** riesgo final bajo (ningún 1-6) y o bien no cambia comportamiento (docs descriptivas, formato, renombrado mecánico, solo tests) o bien ≤50 líneas de producción (nunca docs que actúan como código) cubiertas por un test. El router lee el diff.
    - **Nivel 1, foco:** ≤200 líneas y ≤5 archivos de producción. Mínimo para docs que actúan como código (prompts, políticas, SKILL.md, planes aprobados), que cuentan como producción.
    - **Nivel 2, completo:** el resto (>200 líneas o >5 archivos de producción).
@@ -75,3 +75,7 @@ Agentes de proyecto en `.claude/agents/` con nombre de worker (`clasificador`, `
 
 ## 9. Relevo de sesión
 Sesión larga, tras compactación, o antes de cerrar con trabajo a medias → escribir `HANDOFF.md` (`.claude/work/` si hay repo git; si no, raíz del proyecto): hecho, pendiente, archivos clave, decisiones, preguntas abiertas, estado del presupuesto §3 (llamadas a `arquitecto`, ciclos usados; si hay logbook, sus contadores). Sobrescribir, no acumular. Sesión nueva en proyecto con `HANDOFF.md` → leerlo antes de actuar.
+Tarea cerrada (§7) y lo siguiente no está relacionado → sugerir al usuario `/rename <tarea>` y `/clear` (coste 0) en vez de `/compact`; con trabajo a medias, primero `HANDOFF.md`. Se retoma con `/resume`.
+
+## 10. Compact instructions
+Al compactar (router; los workers lo ignoran) conservar literal: la petición del usuario, la ruta de `.claude/work/<tarea>/estado.md`, los contadores `arquitecto: N/1` y `ciclos: N/2`, el `base_commit`, el tramo en curso, el último veredicto (con sus hallazgos bloqueantes) y el siguiente paso. Descartar las salidas de herramientas ya resumidas. Tras compactar, el logbook manda.

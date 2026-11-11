@@ -45,7 +45,7 @@ Schema: [../contracts/verificador-output.schema.json](../contracts/verificador-o
 **Destructivo posible:** con `Bash` puede escribir o borrar. La prohibición de editar (`:12`) es solo de prompt.
 
 ## Por qué este modelo
-Opus con contexto limpio: la independencia viene del contexto, no del cambio de modelo; effort medium en todos los niveles ([../decisions/0012-verificacion-por-niveles.md](../decisions/0012-verificacion-por-niveles.md)). Ver [../decisions/0004-verificacion-dos-gates.md](../decisions/0004-verificacion-dos-gates.md).
+Opus con contexto limpio (experimento: el nivel 1 en modo `normal` se lanza con `model: "sonnet"` y escala a opus si devuelve `Nivel: 2 (escalado)`; ver `~/.claude/orchestrator/policy.md:48`, ADR 0014): la independencia viene del contexto, no del cambio de modelo; effort medium en todos los niveles ([../decisions/0012-verificacion-por-niveles.md](../decisions/0012-verificacion-por-niveles.md)). Ver [../decisions/0004-verificacion-dos-gates.md](../decisions/0004-verificacion-dos-gates.md).
 
 ## Modos de fallo
 | Síntoma | Causa probable | Respuesta del orquestador |

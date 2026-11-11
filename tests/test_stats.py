@@ -179,6 +179,48 @@ class StatsTests(unittest.TestCase):
         self.assertIn("Por nivel", output)
         self.assertIn("n=1", next(x for x in output.splitlines() if x.startswith("  ? ")))
 
+    def test_cost_per_record_and_total(self) -> None:
+        opus = self.record("arquitecto", turns=1, model="claude-opus-5-5", cache_write=1000)
+        sonnet = self.record("implementador", turns=1, model="claude-sonnet-5-5", cache_write=1000)
+        self.write_log([opus, sonnet])
+        output = self.run_stats()
+        # opus: 100*4 + 1000*4*2 + 1000*0.2 + 200*20 = 12600 -> $0.0126 ; sonnet: half
+        self.assertEqual(self.row(output, "arquitecto")[8], "0.01")
+        self.assertIn("Total estimado: $0.02", output)
+        self.assertNotIn("sin precio", output)
+
+    def test_unknown_model_is_counted_not_priced(self) -> None:
+        self.write_log([self.record(turns=1, model="claude-x"), self.record(turns=2, model=None)])
+        output = self.run_stats()
+        self.assertIn("Total estimado: $0.00", output)
+        self.assertIn("2 registros sin precio", output)
+
+    def test_total_is_sum_of_records(self) -> None:
+        big: dict[str, Any] = {"in": 1_000_000, "cache_read": 0, "cache_write": 0, "out_est": 0}
+        self.write_log(
+            [
+                self.record(turns=1, model="claude-opus-5-5", **big),
+                self.record("x", turns=2, model="claude-sonnet-5-5", **big),
+            ]
+        )
+        self.assertIn("Total estimado: $6.00", self.run_stats())
+
+    def test_level_by_model_with_escalated(self) -> None:
+        self.write_log(
+            [
+                self.record("verificador", turns=1, nivel="1", model="claude-sonnet-5-5", status="RECHAZADO"),
+                self.record("verificador", turns=2, nivel="1", model="claude-sonnet-5-5", motivo="escalado"),
+                self.record("verificador", turns=3, nivel="1", model="claude-opus-5-5", status="APROBADO"),
+            ]
+        )
+        lines = self.run_stats().splitlines()
+        sonnet = next(x for x in lines if x.startswith("  1 ") and "sonnet-5-5" in x)
+        self.assertIn("n=2", sonnet)
+        self.assertIn("RECHAZADO:1 (50%)", sonnet)
+        self.assertIn("escalado:1", sonnet)
+        opus = next(x for x in lines if x.startswith("  1 ") and "opus-5-5" in x)
+        self.assertIn("escalado:0", opus)
+
 
 if __name__ == "__main__":
     unittest.main()

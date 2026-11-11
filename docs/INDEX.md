@@ -44,6 +44,8 @@ El orquestador es una política en lenguaje natural (`~/.claude/orchestrator/pol
 | [decisions/0011-doctor-y-e2e.md](decisions/0011-doctor-y-e2e.md) | `/orch-doctor` (diagnóstico de solo lectura) y E2E con modelo falso; hallazgos sobre `SubagentStop` y `maxTurns` | Algo de la instalación no funcione, o actualices Claude Code |
 | [decisions/0012-verificacion-por-niveles.md](decisions/0012-verificacion-por-niveles.md) | Tres niveles de `verificador`, tope de effort `medium` y datos que lo justifican | Quieras revisar cuándo se verifica |
 | [decisions/0013-calidad-del-implementador.md](decisions/0013-calidad-del-implementador.md) | Reglas de calidad del `implementador` y aviso de complejidad evitable del `verificador`, con la auditoría de diffs que las justifica | Quieras revisar qué se exige al código que escribe un worker |
+| [decisions/0014-coste-por-rol-y-contexto.md](decisions/0014-coste-por-rol-y-contexto.md) | Umbrales en línea más bajos, experimento del `verificador` nivel 1 en sonnet con criterio de reversión, `arquitecto` `maxTurns` 35, compact instructions, cierre de tarea y coste en `/orch-stats` | Quieras revisar o revertir una medida de coste |
+| [decisions/0015-recorte-de-salida-de-tests.md](decisions/0015-recorte-de-salida-de-tests.md) | Hook `trim-test-output`: por qué un wrapper y no `\| tail`, regex, exclusiones y `[VERIFICAR]` de permisos | Una salida de tests llegue recortada o completa sin esperarlo |
 | [audit-pending.md](audit-pending.md) | Comprobaciones en ejecución: cerradas por el E2E y pendientes (`[VERIFICAR]`) | Hagas la auditoría |
 | [avances.md](avances.md) | Registro de lo hecho desde 0.1.0: fases, PR, verificación, instalación y pendientes | Quieras saber en qué punto está el proyecto |
 

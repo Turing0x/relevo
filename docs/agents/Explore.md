@@ -12,7 +12,7 @@ Localiza archivos, símbolos y convenciones en una búsqueda amplia y devuelve u
 NO modifica nada (`:10`). NO lee `.env`, secretos ni credenciales (`:12`). NO lee archivos enteros salvo que sea imprescindible (`:11`). NO decide qué hacer con el resultado: eso lo hace el router en línea (`~/.claude/orchestrator/policy.md:21`).
 
 ## Cuándo se invoca
-Tarea de tipo `busqueda` que no es de ≤3 archivos conocidos o que no cabe en 1 lote de ≤3 llamadas (~10k tokens), o cuando en línea ya van >5 búsquedas secuenciales. Ver [../routing.md](../routing.md#paso-3-tabla-b-ruta-inicial-por-tipo) y `~/.claude/orchestrator/policy.md:28`. Claude Code también puede lanzarlo por su cuenta, como al `Explore` integrado `[VERIFICAR: que el archivo de usuario sustituye al integrado; ver ../audit-pending.md]`.
+Tarea de tipo `busqueda` que no es de ≤2 archivos conocidos o que no cabe en 1 lote de ≤3 llamadas (~5k tokens), o cuando en línea ya van >3 búsquedas secuenciales (umbrales bajados en el ADR [0014](../decisions/0014-coste-por-rol-y-contexto.md)). Ver [../routing.md](../routing.md#paso-3-tabla-b-ruta-inicial-por-tipo) y `~/.claude/orchestrator/policy.md:28`. Claude Code también puede lanzarlo por su cuenta, como al `Explore` integrado `[VERIFICAR: que el archivo de usuario sustituye al integrado; ver ../audit-pending.md]`.
 
 ## Input
 El brief. NO ve CLAUDE.md ni la política (`omitClaudeMd: true`, `~/.claude/agents/Explore.md:8`): todas sus reglas están en su prompt. NO ve el historial del chat. Schema: [../contracts/brief.schema.json](../contracts/brief.schema.json).

@@ -1,6 +1,6 @@
 # Avances: de 0.1.0 a 0.2.0 y siguientes
 
-Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, cómo se verificó y qué queda pendiente. Las rutas son relativas a la raíz del repo; las de la instalación, absolutas desde `~/.claude/`. Última actualización: 2026-11-05.
+Registro de lo hecho tras la primera release. Recoge qué se cambió, por qué, cómo se verificó y qué queda pendiente. Las rutas son relativas a la raíz del repo; las de la instalación, absolutas desde `~/.claude/`. Última actualización: 2026-11-11.
 
 ## Resumen
 
@@ -85,7 +85,7 @@ Hallazgos de comportamiento con Claude Code 2.1.312:
 
 La instalación global se había hecho a mano antes de existir el instalador y tenía dos cambios propios que no estaban en el repo. Reinstalar los habría borrado, así que primero se llevaron al repo:
 
-- **§9 "Relevo de sesión"** (`orchestrator/policy.md:76-77`): en sesiones largas, tras compactar o antes de cerrar con trabajo a medias, el router sobrescribe `HANDOFF.md` (en `.claude/work/` si hay repo git; si no, en la raíz) con lo hecho, lo pendiente, archivos clave, decisiones, preguntas abiertas y el presupuesto §3 (con los contadores del logbook si existe). Una sesión nueva lo lee antes de actuar. La línea 2 de la política dice a los workers que ignoren §9. Va al final para no mover ninguna cita `policy.md:N`.
+- **§9 "Relevo de sesión"** (`orchestrator/policy.md:76-78`): en sesiones largas, tras compactar o antes de cerrar con trabajo a medias, el router sobrescribe `HANDOFF.md` (en `.claude/work/` si hay repo git; si no, en la raíz) con lo hecho, lo pendiente, archivos clave, decisiones, preguntas abiertas y el presupuesto §3 (con los contadores del logbook si existe). Una sesión nueva lo lee antes de actuar. La línea 2 de la política dice a los workers que ignoren §9. Iba al final para no mover ninguna cita `policy.md:N`; desde 0014 le sigue §10, que tampoco mueve ninguna.
 - **`/orchestrator-init`** (`commands/orchestrator-init.md`) detecta tres modos:
   - repo git: pasos 1-6 en la raíz git;
   - raíz multi-repo (sin git, con subcarpetas git a 1 o 2 niveles): pasos 1-6 en cada subrepo y después el paso 7 en la raíz, con `orchestrator.md`, `CLAUDE.md` y `settings.json` de raíz y rutas sensibles con prefijo `<subrepo>/`;
@@ -199,6 +199,23 @@ Petición del usuario: garantizar los verificadores solo cuando son necesarios, 
 - Test nuevo: `ImplementerQualityTests` en `tests/test_repo_consistency.py`.
 - `verificador` nivel 2: APROBADO con 6 advertencias, corregidas después (redacción de las reglas, alcance del aviso, agujas del test y filtro de las cifras del ADR). Esas correcciones pasaron `make check`, sin recheck.
 
+## Coste por rol y contexto (2026-11-11)
+
+Rama `feat/costes`, sin commit ni PR todavía. Detalle y criterios de reversión en los ADR [0014](decisions/0014-coste-por-rol-y-contexto.md) y [0015](decisions/0015-recorte-de-salida-de-tests.md). Ninguna regla de la política se relaja: solo se añade o endurece.
+
+Salida real de `/orch-stats` nueva (30 días, precio de lista, sin thinking: infraestima): `implementador` 129 llamadas, ~105 $; `verificador` 122, ~76 $; `arquitecto` 23, ~67 $ (2,91 $ por llamada); total ~248 $. El nivel 2 del `verificador` rechaza el 35 %. El precio `cache_read` de haiku es un supuesto (`# VERIFICAR` en `orchestrator/stats.py`); `CACHE_WRITE_MULT` 2,0 (TTL 1 h).
+
+| Medida | Qué se hizo |
+|---|---|
+| Umbrales de la tabla B | `busqueda` en línea con ≤2 archivos y ~5k tokens, `Explore` tras >3 búsquedas; `mecanica` en línea con salida ≤80 líneas |
+| Experimento | `verificador` nivel 1 `normal` en sonnet, con escalado a opus y reversión a 30 días |
+| `arquitecto` | `maxTurns` 35 y esqueleto de plan temprano; sin `autoCompactWindow` |
+| Política | §9 `/rename` + `/clear`; §10 compact instructions |
+| Hook | `trim-test-output` (opt-in) recorta la salida larga de tests con el mismo exit code |
+| Medición | `/orch-stats` con `$~` y nivel × modelo; `/orch-doctor` con `claude:version` y aviso de `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`; `statusline.py` opcional |
+
+Resuelto por E2E: Claude Code evalúa los permisos sobre el comando reescrito (pide aprobación aunque `allow` cubra el original), así que `trim-test-output` es opt-in. Pendiente de comprobar (`[VERIFICAR]`): que `/compact` recibe el texto de §10.
+
 ## Cómo se trabajó
 
 - Cada fase fue en su propia rama y PR. Las fases 2 y 3 corrieron en sesiones aparte de Claude Code, cada una en su worktree.
@@ -216,10 +233,16 @@ Estado de los gates en `main` (`c8cdc7e`): 284 tests OK (10 skipped, 3 expected 
 | Copias locales | `~/.claude/orchestrator/log.jsonl.bak` y `~/.claude/orchestrator/orch-telemetry.bak` se pueden borrar cuando `/orch-stats` lleve unos días sin `SIN_ESTADO` nuevos |
 | Vigilar `SIN_ESTADO` | Si reaparece con el reintento, los 2,5 s no bastan: valorar leer el estado del payload de `SubagentStop` si Claude Code llega a incluir el handback |
 | `/orch-doctor` en raíces multi-repo | `doctor.py` da por hecho una raíz git (`gitignore:work`, `claude-md:import`) y puede avisar sin motivo en una raíz multi-repo sin git |
-| Dependabot | PR [#9](https://github.com/Turing0x/relevo/pull/9) (python-dev-tools) y [#10](https://github.com/Turing0x/relevo/pull/10) (github-actions) abiertos |
+| Dependabot | PR [#17](https://github.com/Turing0x/relevo/pull/17) (python-dev-tools, sustituye a #9) y [#10](https://github.com/Turing0x/relevo/pull/10) (github-actions) abiertos (2026-11-11) |
 | audit-pending | #5 a medias (timeout de red e interrupción por el usuario) y #7 (clasificación en línea con opus frente a `clasificador` con otro modelo), a comprobar a mano |
 | Medir | Comparar `/orch-stats` dentro de 30 días: llamadas a opus por tarea, `tope` y `SIN_ESTADO`; además rechazos por nivel del `verificador` y el efecto de effort `medium` en `arquitecto` e `implementador` |
-| Verificación por niveles | Commit y PR; reinstalar en `~/.claude` (hasta entonces sigue vigente la política antigua) |
-| Calidad del implementador | Medir a 30 días: comandos repetidos y turnos en `log.jsonl`. Commit y PR; reinstalar en `~/.claude` |
+| Verificación por niveles | PR [#18](https://github.com/Turing0x/relevo/pull/18) abierto (`feat/verificador-niveles`, `017e502`). Ya instalado en `~/.claude` (2026-11-11 se comprobó: los archivos instalados coinciden con `297992b`) |
+| Calidad del implementador | PR [#19](https://github.com/Turing0x/relevo/pull/19) abierto (`feat/implementador-calidad`, `297992b`, apilado sobre #18). Instalado. Medir a 30 días: comandos repetidos y turnos en `log.jsonl` |
+| Coste por rol y contexto | Rama `feat/costes` apilada sobre #19, cambios sin commit. Falta: auditoría, commit, PR (merge después de #18 y #19) y reinstalar. El paso del hook a opt-in no tuvo `verificador` (ciclos 2/2 agotados): revisarlo en la auditoría. Paquete de auditoría local en `.claude/work/costes/AUDITORIA.md` |
+| `# Compact instructions` | `[VERIFICAR]` que `/compact` recibe el texto de §10 (sin E2E); si no llega, plan B del ADR 0014 |
+| Limpieza de MCP y plugins | Quitar los MCP y plugins sin uso del usuario (los de `claude.ai` y plugins instalados); medir con `/context` antes y después |
+| E2E de §10 | E2E de §10 (Compact instructions vía import) sin escribir |
+| Medir a 30 días (coste) | Experimento sonnet nivel 1 (n, `escalado`, defectos en `main`); uso de `Explore` y `rapido` tras bajar los umbrales; vueltas por tope del `arquitecto` con `maxTurns` 35 (≥2 → 40); coste total antes/después con `/orch-stats` |
+| Release 0.2.1 (costes) | Commit y PR de `feat/costes`; reinstalar en `~/.claude` |
 | Idea abierta | Las lentes 4R como foco dentro del brief del `verificador` (una sola llamada con más dirección) |
 | Limpieza local | El worktree `.claude/worktrees/elegant-haibt-070da9` de la fase 2 sigue en disco; borrarlo necesita aprobación |

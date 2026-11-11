@@ -1,11 +1,12 @@
 {
   "$comment": "Fuente única de la tabla B (policy.md §2B) y de su copia en agents/clasificador.md. Edita aquí y ejecuta scripts/render_routing.py; make docs-check falla si las copias no coinciden.",
   "umbrales": {
-    "busqueda_max_archivos": 3,
+    "busqueda_max_archivos": 2,
     "busqueda_max_llamadas": 3,
-    "busqueda_max_tokens_k": 10,
-    "busqueda_max_secuenciales": 5,
+    "busqueda_max_tokens_k": 5,
+    "busqueda_max_secuenciales": 3,
     "mecanica_max_archivos": 2,
+    "mecanica_max_salida_lineas": 80,
     "implementacion_max_archivos": 2,
     "implementacion_max_complejidad": 2,
     "arquitecto_min_complejidad": 4,
@@ -29,9 +30,9 @@
     {
       "tipos": ["mecanica"],
       "etiqueta": "mecanica (incluye ejecutar tests/build y acciones de §6 puras)",
-      "en_linea": "≤{mecanica_max_archivos} archivos y salida corta",
+      "en_linea": "≤{mecanica_max_archivos} archivos y salida ≤{mecanica_max_salida_lineas} líneas (tests/build: salida recortada solo si `trim-test-output` está activado)",
       "si_no": "`rapido` (haiku)",
-      "clasificador": "mecanica → en_linea si ≤{mecanica_max_archivos} archivos y salida corta; si no rapido"
+      "clasificador": "mecanica → en_linea si ≤{mecanica_max_archivos} archivos y salida ≤{mecanica_max_salida_lineas} líneas (tests/build: salida recortada solo si `trim-test-output` está activado); si no rapido"
     },
     {
       "tipos": ["arquitectura", "bug_dificil"],
